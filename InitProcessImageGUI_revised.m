@@ -952,9 +952,10 @@ if isempty(list) == 0  % i.e. if there are 1 or more files to process
 %                     Z(115:256,308,klm) = mean(Z(115:256,[307 309],klm),2);
 %                     Z(113,501,klm) = mean(Z(113,[500 502],klm),2);
                     
-        % Aberration Correction
+%% Aberration Correction
         ZCt = interp2(Z(:,:,klm),Xi,Yi,'spline');
-        
+
+%%
         % Crop image
         ZC = ZCt(cpy1:cpy2,cpx1:cpx2); 
         process.image(:,:,klm)=ZC;
