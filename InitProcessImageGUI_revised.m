@@ -212,6 +212,19 @@ function initialprocess_Callback(hObject, eventdata, handles)
 
 % As in Jason's version, we use the interp2 function to convert raw images into ideal images. In the current case, we use white light to define the raw "horizontal" guidelines from single fibers and neon spots from different fibers to define the raw "vertical" guidelines for chosen neon wavelengths.
 
+
+%% Main goals
+
+% Check whether Sadia's code can all be put in one place.
+% - Two goals: 
+%   (1) Do the spatial aberration correction to get all calibrated neon "lines" to line up horizontally.
+%   (2) Use a more stable method of calibrating wavelength and wavenumber .
+
+% Prior calibration method depended upon determining the "largest" N peaks of neon/tylenol. At the bottom of the list, this was unstable--the list would change. This required effort to maintain lists of the calibration locations. 
+
+% Using a 2D image approach, we can avoid the issue of relative peak heights. Now we instead will assign each calibrated neon line the appropriate literature wavelength value in the "ideal image" space.
+
+
 %% Options
 
 % Darkspec Filtering
