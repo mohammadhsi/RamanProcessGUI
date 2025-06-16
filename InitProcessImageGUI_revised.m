@@ -210,9 +210,16 @@ function initialprocess_Callback(hObject, eventdata, handles)
 
 %% Aberration correction, June 2025
 
-% Sadia Afrin (SA) developed code to correct aberrations in raw 2D images. This followed past work by Francis Esmonde-White (Mike Morris group at UMich) and Jason Maher. Neither Francis's paper nor Jason's thesis laid this out in sufficient detail for us to use as-is. (In Jason's case, it is likely that his approach worked correctly at one time but was subsequently altered in some way, perhaps during Christie Massie's time in our group.)
+% Sadia Afrin (SA) developed code to correct aberrations in raw 2D images. This followed past work
+% by Francis Esmonde-White (Mike Morris group at UMich) and Jason Maher. Neither Francis's paper nor
+% Jason's thesis laid this out in sufficient detail for us to use as-is. (In Jason's case, it is
+% likely that his approach worked correctly at one time but was subsequently altered in some way,
+% perhaps during Christie Massie's time in our group.)
 
-% As in Jason's version, we use the interp2 function to convert raw images into ideal images. In the current case, we use white light to define the raw "horizontal" guidelines from single fibers and neon spots from different fibers to define the raw "vertical" guidelines for chosen neon wavelengths.
+% As in Jason's version, we use the interp2 function to convert raw images into ideal images. In the
+% current case, we use white light to define the raw "horizontal" guidelines from single fibers and
+% neon spots from different fibers to define the raw "vertical" guidelines for chosen neon
+% wavelengths.
 
 
 %% Main goals
@@ -222,9 +229,13 @@ function initialprocess_Callback(hObject, eventdata, handles)
 %   (1) Do the spatial aberration correction to get all calibrated neon "lines" to line up horizontally.
 %   (2) Use a more stable method of calibrating wavelength and wavenumber .
 
-% Prior calibration method depended upon determining the "largest" N peaks of neon/tylenol. At the bottom of the list, this was unstable--the list would change. This required effort to maintain lists of the calibration locations. 
+% Prior calibration method depended upon determining the "largest" N peaks of neon/tylenol. At the
+% bottom of the list, this was unstable--the list would change. This required effort to maintain
+% lists of the calibration locations.
 
-% Using a 2D image approach, we can avoid the issue of relative peak heights. Now we instead will assign each calibrated neon line the appropriate literature wavelength value in the "ideal image" space.
+% Using a 2D image approach, we can avoid the issue of relative peak heights. Now we instead will
+% assign each calibrated neon line the appropriate literature wavelength value in the "ideal image"
+% space.
 
 %% Order of operations
 
