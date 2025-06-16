@@ -289,7 +289,7 @@ whiteLampImage = whiteLampData(1:256, :);
 neonImage = neonData(1:256, :);
 
 % Quick visualization of the raw neon image.
-figure(545)
+figure(1)
 imagesc(neonImage)
 title('Raw Neon Image');
 
@@ -312,7 +312,7 @@ expected_spacing = 3;  % Minimum spacing in rows
 fprintf('Total detected fibers: %d\n', length(locs));
 
 % Display detected fiber rows.
-figure;
+figure 2;
 imshow(whiteLampImage, []);
 hold on;
 for i = 1:length(locs)
@@ -344,7 +344,7 @@ for i = 1:length(npeaklambda)
 end
 
 % Display the neon image with vertical markers.
-figure;
+figure 3;
 imagesc(neonImage);
 set(gcf, 'Color', 'w');   % White figure background
 axis image;
@@ -377,7 +377,7 @@ detectedNeonColumns = pixelPositions; % X positions (from neon wavelengths)
 combinedControlPoints = [gridX(:), gridY(:)];
 
 % For visual verification, display the control points on the neon image.
-figure; 
+figure 4; 
 imshow(neonImage, []); 
 hold on; 
 for i = 1:size(combinedControlPoints, 1)
