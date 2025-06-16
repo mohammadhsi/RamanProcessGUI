@@ -224,7 +224,22 @@ function initialprocess_Callback(hObject, eventdata, handles)
 
 % Using a 2D image approach, we can avoid the issue of relative peak heights. Now we instead will assign each calibrated neon line the appropriate literature wavelength value in the "ideal image" space.
 
+%% Order of operations
 
+% ACTUAL (RAW) data space
+
+% 1. Fixed pattern correction (thermal lamp) - does not change the size of the file (does not need to be done first)
+
+% ABBERATION CORRECTION
+
+% 2. Using neon as control, converts from raw image into ideal image (vertical stacks of same-wavelength neon spots). Sampled along linear-wavelength x axis; file is initially heavily subsampled in both x and y
+
+% 2a. Check that tylenol and cadaver data also look well-aligned vertically.
+
+% IDEALIZED DATA SPACE
+
+% 3. Vertically sum each leg region. Result is three spectra corresponding to 0, 3, and 6 mm spatial offsets. [This is already done in the previous code.]
+% 4. Apply throughput correction using green glass (same for all legs). [This is already done in the previous code. Same for all other post-processing steps such as cosmic ray removal, smoothing, and number of iterations for the Anita algorithm.
 %% Options
 
 % Darkspec Filtering
