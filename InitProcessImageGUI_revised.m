@@ -206,6 +206,12 @@ function initialprocess_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
+%% Aberration correction, June 2025
+
+% Sadia Afrin (SA) developed code to correct aberrations in raw 2D images. This followed past work by Francis Esmonde-White (Mike Morris group at UMich) and Jason Maher. Neither Francis's paper nor Jason's thesis laid this out in sufficient detail for us to use as-is. (In Jason's case, it is likely that his approach worked correctly at one time but was subsequently altered in some way, perhaps during Christie Massie's time in our group.)
+
+% As in Jason's version, we use the interp2 function to convert raw images into ideal images. In the current case, we use white light to define the raw "horizontal" guidelines from single fibers and neon spots from different fibers to define the raw "vertical" guidelines for chosen neon wavelengths.
+
 %% Options
 
 % Darkspec Filtering
