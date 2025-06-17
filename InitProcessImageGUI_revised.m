@@ -285,8 +285,11 @@ load(neonFile, 'RawData');
 neonData = RawData.Spectrum; 
 
 % Restrict to the first 256 rows.
-whiteLampImage = whiteLampData(1:256, :); 
-neonImage = neonData(1:256, :);
+%  ? is this about using only the first frame rather than all frames? - ajb 2025.06.16
+% and eventually we should use all five frames for cosmic ray reasons
+Range = 256;
+whiteLampImage = whiteLampData(1:Range, :); 
+neonImage = neonData(1:Range, :);
 
 % Quick visualization of the raw neon image.
 figure(1)
@@ -312,7 +315,7 @@ expected_spacing = 3;  % Minimum spacing in rows
 fprintf('Total detected fibers: %d\n', length(locs));
 
 % Display detected fiber rows.
-figure 2;
+figure(2);
 imshow(whiteLampImage, []);
 hold on;
 for i = 1:length(locs)
@@ -344,7 +347,7 @@ for i = 1:length(npeaklambda)
 end
 
 % Display the neon image with vertical markers.
-figure 3;
+figure(3);
 imagesc(neonImage);
 set(gcf, 'Color', 'w');   % White figure background
 axis image;
@@ -377,7 +380,7 @@ detectedNeonColumns = pixelPositions; % X positions (from neon wavelengths)
 combinedControlPoints = [gridX(:), gridY(:)];
 
 % For visual verification, display the control points on the neon image.
-figure 4; 
+figure(4); 
 imshow(neonImage, []); 
 hold on; 
 for i = 1:size(combinedControlPoints, 1)
@@ -616,8 +619,68 @@ xlabel('X (pixels)');
 ylabel('Y (pixels)');
 colorbar;
 
+%% ===================================================
+% SANITY CHECKs: RAW VS. GLOBALLY CORRECTED for Tylenol (peaks) and WhiteLamp (straightness)
+% ====================================================
+
+% Tylenol check
+% Load neon lamp data and extract the spectrum.
+tylenolFile = fullfile(dataDir, 'tylenol.mat');
+load(tylenolFile, 'RawData'); 
+tylenolData = RawData.Spectrum; 
+tylenolImage = tylenolData(1:Range,:);
+
+TcorrectedImage = interp2(1:Nx, 1:Ny, double(tylenolImage), ...
+            X_corrected_global, Y_corrected_global, 'spline', 0);
+
+
+figure('Name', 'Raw vs. Globally Corrected Tylenol Images');
+ 
+% Subplot 1: Raw Tylenol Image.
+subplot(2,1,1);
+imagesc(tylenolImage);
+axis image;
+title('Raw Tylenol Image');
+xlabel('X (pixels)');
+ylabel('Y (pixels)');
+colorbar;
+
+% Subplot 2: Globally Corrected Tylenol Image.
+subplot(2,1,2);
+imagesc(TcorrectedImage);
+axis image;
+title('Globally Corrected Tylenol Image');
+xlabel('X (pixels)');
+ylabel('Y (pixels)');
+colorbar;
+
+figure('Name', 'Raw vs. Globally Corrected WhiteLamp Images');
+
+WcorrectedImage = interp2(1:Nx, 1:Ny, double(whiteLampImage), ...
+            X_corrected_global, Y_corrected_global, 'spline', 0);
+
+% Subplot 1: Raw White Lamp Image.
+subplot(2,1,1);
+imagesc(whiteLampImage);
+axis image;
+title('Raw White Lamp Image');
+xlabel('X (pixels)');
+ylabel('Y (pixels)');
+colorbar;
+
+% Subplot 2: Globally Corrected White Lamp Image.
+subplot(2,1,2);
+imagesc(WcorrectedImage);
+axis image;
+title('Globally Corrected White Lamp Image');
+xlabel('X (pixels)');
+ylabel('Y (pixels)');
+colorbar;
+
 
 % end of new block of aberration correction
+
+
 
 %% Options
 
