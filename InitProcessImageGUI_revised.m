@@ -687,7 +687,6 @@ figure('Name', 'Raw vs. Globally Corrected Data Image');
 
 % choose a file from the dataDir;
 [ChosenFile,dataDir] = uigetfile('C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12');
-% currently using a particular file from 2025.06.12, not a new popup
 myFile = fullfile(dataDir, ChosenFile);
 load(myFile, 'RawData'); 
 myData = RawData.Spectrum; 
