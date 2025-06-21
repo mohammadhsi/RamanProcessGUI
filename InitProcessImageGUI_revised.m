@@ -208,11 +208,20 @@ function initialprocess_Callback(hObject, eventdata, handles)
 
 % This code runs when the initialprocess callback button runs!
 
+close all
+
 %% Aberration correction, June 2025
 
-% Sadia Afrin (SA) developed code to correct aberrations in raw 2D images. This followed past work by Francis Esmonde-White (Mike Morris group at UMich) and Jason Maher. Neither Francis's paper nor Jason's thesis laid this out in sufficient detail for us to use as-is. (In Jason's case, it is likely that his approach worked correctly at one time but was subsequently altered in some way, perhaps during Christie Massie's time in our group.)
+% Sadia Afrin (SA) developed code to correct aberrations in raw 2D images. This followed past work
+% by Francis Esmonde-White (Mike Morris group at UMich) and Jason Maher. Neither Francis's paper nor
+% Jason's thesis laid this out in sufficient detail for us to use as-is. (In Jason's case, it is
+% likely that his approach worked correctly at one time but was subsequently altered in some way,
+% perhaps during Christie Massie's time in our group.)
 
-% As in Jason's version, we use the interp2 function to convert raw images into ideal images. In the current case, we use white light to define the raw "horizontal" guidelines from single fibers and neon spots from different fibers to define the raw "vertical" guidelines for chosen neon wavelengths.
+% As in Jason's version, we use the interp2 function to convert raw images into ideal images. In the
+% current case, we use white light to define the raw "horizontal" guidelines from single fibers and
+% neon spots from different fibers to define the raw "vertical" guidelines for chosen neon
+% wavelengths.
 
 
 %% Main goals
@@ -222,9 +231,13 @@ function initialprocess_Callback(hObject, eventdata, handles)
 %   (1) Do the spatial aberration correction to get all calibrated neon "lines" to line up horizontally.
 %   (2) Use a more stable method of calibrating wavelength and wavenumber .
 
-% Prior calibration method depended upon determining the "largest" N peaks of neon/tylenol. At the bottom of the list, this was unstable--the list would change. This required effort to maintain lists of the calibration locations. 
+% Prior calibration method depended upon determining the "largest" N peaks of neon/tylenol. At the
+% bottom of the list, this was unstable--the list would change. This required effort to maintain
+% lists of the calibration locations.
 
-% Using a 2D image approach, we can avoid the issue of relative peak heights. Now we instead will assign each calibrated neon line the appropriate literature wavelength value in the "ideal image" space.
+% Using a 2D image approach, we can avoid the issue of relative peak heights. Now we instead will
+% assign each calibrated neon line the appropriate literature wavelength value in the "ideal image"
+% space.
 
 %% Order of operations
 
@@ -260,7 +273,8 @@ function initialprocess_Callback(hObject, eventdata, handles)
 
 % acceptable but arbitrary choice of data - ajb
 % (could use a popup if that is more useful)
-dataDir =  'C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12';
+dataDir = uigetdir('C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12');
+% dataDir =  'C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12';
 
 whiteLampFile = fullfile(dataDir, 'whitelamp.mat');
 neonFile = fullfile(dataDir, 'neon.mat');
@@ -274,11 +288,14 @@ load(neonFile, 'RawData');
 neonData = RawData.Spectrum; 
 
 % Restrict to the first 256 rows.
-whiteLampImage = whiteLampData(1:256, :); 
-neonImage = neonData(1:256, :);
+%  ? is this about using only the first frame rather than all frames? - ajb 2025.06.16
+% and eventually we should use all five frames for cosmic ray reasons
+Range = 256;
+whiteLampImage = whiteLampData(1:Range, :); 
+neonImage = neonData(1:Range, :);
 
 % Quick visualization of the raw neon image.
-figure(545)
+figure(1)
 imagesc(neonImage)
 title('Raw Neon Image');
 
@@ -301,7 +318,7 @@ expected_spacing = 3;  % Minimum spacing in rows
 fprintf('Total detected fibers: %d\n', length(locs));
 
 % Display detected fiber rows.
-figure;
+figure(2);
 imshow(whiteLampImage, []);
 hold on;
 for i = 1:length(locs)
@@ -333,7 +350,7 @@ for i = 1:length(npeaklambda)
 end
 
 % Display the neon image with vertical markers.
-figure;
+figure(3);
 imagesc(neonImage);
 set(gcf, 'Color', 'w');   % White figure background
 axis image;
@@ -366,7 +383,8 @@ detectedNeonColumns = pixelPositions; % X positions (from neon wavelengths)
 combinedControlPoints = [gridX(:), gridY(:)];
 
 % For visual verification, display the control points on the neon image.
-figure; 
+figure(4)
+ 
 imshow(neonImage, []); 
 hold on; 
 for i = 1:size(combinedControlPoints, 1)
@@ -605,8 +623,101 @@ xlabel('X (pixels)');
 ylabel('Y (pixels)');
 colorbar;
 
+%% ===================================================
+% SANITY CHECKS: RAW VS. GLOBALLY CORRECTED for Tylenol (peaks) and WhiteLamp (straightness)
+% ====================================================
+
+%% Tylenol check
+
+% Load neon lamp data and extract the spectrum.
+tylenolFile = fullfile(dataDir, 'tylenol.mat');
+load(tylenolFile, 'RawData'); 
+tylenolData = RawData.Spectrum; 
+tylenolImage = tylenolData(1:Range,:);
+
+TcorrectedImage = interp2(1:Nx, 1:Ny, double(tylenolImage), ...
+            X_corrected_global, Y_corrected_global, 'spline', 0);
+
+figure('Name', 'Raw vs. Globally Corrected Tylenol Images');
+ 
+% Subplot 1: Raw Tylenol Image.
+subplot(2,1,1);
+imagesc(tylenolImage);
+axis image;
+title('Raw Tylenol Image');
+xlabel('X (pixels)');
+ylabel('Y (pixels)');
+colorbar;
+
+% Subplot 2: Globally Corrected Tylenol Image.
+subplot(2,1,2);
+imagesc(TcorrectedImage);
+axis image;
+title('Globally Corrected Tylenol Image');
+xlabel('X (pixels)');
+ylabel('Y (pixels)');
+colorbar;
+
+%% WhiteLamp check
+figure('Name', 'Raw vs. Globally Corrected WhiteLamp Images');
+
+WcorrectedImage = interp2(1:Nx, 1:Ny, double(whiteLampImage), ...
+            X_corrected_global, Y_corrected_global, 'spline', 0);
+
+% Subplot 1: Raw White Lamp Image.
+subplot(2,1,1);
+imagesc(whiteLampImage);
+axis image;
+title('Raw White Lamp Image');
+xlabel('X (pixels)');
+ylabel('Y (pixels)');
+colorbar;
+
+% Subplot 2: Globally Corrected White Lamp Image.
+subplot(2,1,2);
+imagesc(WcorrectedImage);
+axis image;
+title('Globally Corrected White Lamp Image');
+xlabel('X (pixels)');
+ylabel('Y (pixels)');
+colorbar;
+
+%% biological data check
+figure('Name', 'Raw vs. Globally Corrected Data Image');
+
+% choose a file from the dataDir;
+[ChosenFile,dataDir] = uigetfile();
+% currently using a particular file from 2025.06.12, not a new popup
+myFile = fullfile(dataDir, ChosenFile);
+load(myFile, 'RawData'); 
+myData = RawData.Spectrum; 
+myImage = myData(1:Range,:);
+
+McorrectedImage = interp2(1:Nx, 1:Ny, double(myImage), ...
+            X_corrected_global, Y_corrected_global, 'spline', 0);
+
+% Subplot 1: Raw bone image data.
+% Currently MM00 from 
+subplot(2,1,1);
+imagesc(myImage);
+axis image;
+title('Raw Biological Data Image');
+xlabel('X (pixels)');
+ylabel('Y (pixels)');
+colorbar;
+
+% Subplot 2: Globally Corrected bone image data.
+subplot(2,1,2);
+imagesc(McorrectedImage);
+axis image;
+title('Globally Corrected Biological Data Image');
+xlabel('X (pixels)');
+ylabel('Y (pixels)');
+colorbar;
 
 % end of new block of aberration correction
+
+
 
 %% Options
 
