@@ -208,6 +208,8 @@ function initialprocess_Callback(hObject, eventdata, handles)
 
 % This code runs when the initialprocess callback button runs!
 
+close all
+
 %% Aberration correction, June 2025
 
 % Sadia Afrin (SA) developed code to correct aberrations in raw 2D images. This followed past work
@@ -271,7 +273,8 @@ function initialprocess_Callback(hObject, eventdata, handles)
 
 % acceptable but arbitrary choice of data - ajb
 % (could use a popup if that is more useful)
-dataDir =  'C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12';
+dataDir = uigetdir('C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12');
+% dataDir =  'C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12';
 
 whiteLampFile = fullfile(dataDir, 'whitelamp.mat');
 neonFile = fullfile(dataDir, 'neon.mat');
@@ -380,7 +383,8 @@ detectedNeonColumns = pixelPositions; % X positions (from neon wavelengths)
 combinedControlPoints = [gridX(:), gridY(:)];
 
 % For visual verification, display the control points on the neon image.
-figure(4); 
+figure(4)
+ 
 imshow(neonImage, []); 
 hold on; 
 for i = 1:size(combinedControlPoints, 1)
@@ -620,10 +624,11 @@ ylabel('Y (pixels)');
 colorbar;
 
 %% ===================================================
-% SANITY CHECKs: RAW VS. GLOBALLY CORRECTED for Tylenol (peaks) and WhiteLamp (straightness)
+% SANITY CHECKS: RAW VS. GLOBALLY CORRECTED for Tylenol (peaks) and WhiteLamp (straightness)
 % ====================================================
 
-% Tylenol check
+%% Tylenol check
+
 % Load neon lamp data and extract the spectrum.
 tylenolFile = fullfile(dataDir, 'tylenol.mat');
 load(tylenolFile, 'RawData'); 
@@ -632,7 +637,6 @@ tylenolImage = tylenolData(1:Range,:);
 
 TcorrectedImage = interp2(1:Nx, 1:Ny, double(tylenolImage), ...
             X_corrected_global, Y_corrected_global, 'spline', 0);
-
 
 figure('Name', 'Raw vs. Globally Corrected Tylenol Images');
  
@@ -654,6 +658,7 @@ xlabel('X (pixels)');
 ylabel('Y (pixels)');
 colorbar;
 
+%% WhiteLamp check
 figure('Name', 'Raw vs. Globally Corrected WhiteLamp Images');
 
 WcorrectedImage = interp2(1:Nx, 1:Ny, double(whiteLampImage), ...
@@ -677,6 +682,38 @@ xlabel('X (pixels)');
 ylabel('Y (pixels)');
 colorbar;
 
+%% biological data check
+figure('Name', 'Raw vs. Globally Corrected Data Image');
+
+% choose a file from the dataDir;
+[ChosenFile,dataDir] = uigetfile();
+% currently using a particular file from 2025.06.12, not a new popup
+myFile = fullfile(dataDir, ChosenFile);
+load(myFile, 'RawData'); 
+myData = RawData.Spectrum; 
+myImage = myData(1:Range,:);
+
+McorrectedImage = interp2(1:Nx, 1:Ny, double(myImage), ...
+            X_corrected_global, Y_corrected_global, 'spline', 0);
+
+% Subplot 1: Raw bone image data.
+% Currently MM00 from 
+subplot(2,1,1);
+imagesc(myImage);
+axis image;
+title('Raw Biological Data Image');
+xlabel('X (pixels)');
+ylabel('Y (pixels)');
+colorbar;
+
+% Subplot 2: Globally Corrected bone image data.
+subplot(2,1,2);
+imagesc(McorrectedImage);
+axis image;
+title('Globally Corrected Biological Data Image');
+xlabel('X (pixels)');
+ylabel('Y (pixels)');
+colorbar;
 
 % end of new block of aberration correction
 
