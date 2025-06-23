@@ -321,9 +321,9 @@ fprintf('Total detected fibers: %d\n', length(locs));
 
 % Display detected fiber rows.
 figure(2);
-imshow(whiteLampImage, []);
+imshow(whiteLampImage, []);     % this is the raw image
 hold on;
-for i = 1:length(locs)
+for i = 1:length(locs)  % these are simply horizontal lines, i.e. ideal lines
     row = locs(i);
     line([1 Nx], [row row], 'Color', 'r', 'LineWidth', 1);
 end
@@ -362,25 +362,27 @@ pixelPositions = zeros(size(npeaklambda));  % Preallocate for pixel columns
 %     pixelPositions(i) = idx;
 % end
 
-% Display the neon image with vertical markers.
-figure(3);
-imagesc(neonImage);
-set(gcf, 'Color', 'w');   % White figure background
-axis image;
-hold on;
-for i = 1:length(pixelPositions)
-    col = pixelPositions(i);
-    % Draw a vertical red line at the detected neon column.
-    line([col col], [1 Ny], 'Color', 'r', 'LineWidth', 2);
-    % Label the line with the corresponding wavelength.
-    text(col + 5, Ny/2, num2str(npeaklambda(i)), 'Color', 'yellow', ...
-         'Rotation', 90, 'FontWeight', 'bold', 'FontSize', 10);
-end
-xlabel('Pixel Column (Wavelength Scale)');
-ylabel('Fiber Row');
-title('Matched Neon Columns with Wavelengths');
-set(gca, 'XTick', pixelPositions, 'XTickLabel', num2str(npeaklambda, '%.2f'));
-hold off;
+% === This image isn't needed; we will deal with wavelength later - ajb 2025.06.23
+% Display the neon image with vertical markers
+
+% figure(3);
+% imagesc(neonImage);
+% set(gcf, 'Color', 'w');   % White figure background
+% axis image;
+% hold on;
+% for i = 1:length(pixelPositions)
+%     col = pixelPositions(i);
+%     % Draw a vertical red line at the detected neon column.
+%     line([col col], [1 Ny], 'Color', 'r', 'LineWidth', 2);
+%     % Label the line with the corresponding wavelength.
+%     text(col + 5, Ny/2, num2str(npeaklambda(i)), 'Color', 'yellow', ...
+%          'Rotation', 90, 'FontWeight', 'bold', 'FontSize', 10);
+% end
+% xlabel('Pixel Column (Wavelength Scale)');
+% ylabel('Fiber Row');
+% title('Matched Neon Columns with Wavelengths');
+% set(gca, 'XTick', pixelPositions, 'XTickLabel', num2str(npeaklambda, '%.2f'));
+% hold off;
 
 %% ========================================================================
 % STEP 4: COMBINE & ALIGN CONTROL POINTS
@@ -398,6 +400,7 @@ combinedControlPoints = [gridX(:), gridY(:)];
 % For visual verification, display the control points on the neon image.
 figure(4)
  
+% turning off the imshow so as to see the control points better
 imshow(neonImage, []); 
 hold on; 
 for i = 1:size(combinedControlPoints, 1)
