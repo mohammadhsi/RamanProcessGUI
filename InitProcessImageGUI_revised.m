@@ -210,7 +210,7 @@ function initialprocess_Callback(hObject, eventdata, handles)
 
 close all
 
-%% Aberration correction, June 2025
+%% Aberration correction, June 2025 - AJB
 
 % Sadia Afrin (SA) developed code to correct aberrations in raw 2D images. This followed past work
 % by Francis Esmonde-White (Mike Morris group at UMich) and Jason Maher. Neither Francis's paper nor
@@ -246,13 +246,13 @@ close all
 % 1. Fixed pattern correction (thermal lamp) - does not change the size of the file (does not need
 % to be done first)
 
-% ABERRATION CORRECTION
+% ABERRATION CORRECTION - conversion from RAW to IDEAL space
 
 % 2. Using neon as control, converts from raw image into ideal image (vertical stacks of
 % same-wavelength neon spots). 
 % 2a. Check that white light, tylenol, and cadaver data also look well-aligned vertically.
 
-% File is initially heavily subsampled in both x and y.
+% Raw file is sub-pixel interpolated to enable more precise mapping for the conversion.
 
 % To do: resample the data to be linear in WAVELENGTH rather than PIXEL - ajb 2025.06.21
 
@@ -263,7 +263,7 @@ close all
 
 % 4. Apply throughput correction using green glass (same for all legs). [This is already done in the
 % previous code. Same for all other post-processing steps such as cosmic ray removal, smoothing, and
-% number of iterations for the Anita algorithm.
+% number of iterations for the Anita algorithm.]
 
 %% Implement the aberrration code here
 
@@ -273,8 +273,8 @@ close all
 % ========================================================================
 % dataDir = 'C:\Users\Sadia\Desktop\Data Files\Neonasdata\polyorderneon = 3';
 
-% acceptable but arbitrary choice of data - ajb
-% (could use a popup if that is more useful)
+
+% using a dialog popup - ajb
 dataDir = uigetdir('C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12');
 % dataDir =  'C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12';
 
@@ -345,6 +345,10 @@ wavelengths = process.wavelength;  % Reference wavelength scale.
 % -ajb : the process.wavelength values are not spaced linearly. The command >> plot(wavelengths)
 % makes this visually clear: the x axis is pixels, and the data plot is not a straight line (y
 % spacings get smaller at the larger pixel values)
+
+% ajb - rather than using process.wavelength, we choose a linear wavelength axis with the same
+% number of pixels (maybe this is the wrong to time do this)
+
 
 % Define the expected neon wavelengths (in nm).
 npeaklambda = [849.54, 859.13, 865.44, 878.06, 885.39, 886.55, 891.95, 914.87, 920.18, 930.09, 932.65, 942.54, 953.42, 954.74, 966.54]';
