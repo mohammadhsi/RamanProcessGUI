@@ -361,7 +361,7 @@ pixelPositions = zeros(size(npeaklambda));  % Preallocate for pixel columns
 % knowing a reasonable pixel range within which no other peak will be
 % close.
 
-if 1
+if 1 % new test
 
 % === ajb: define pixel ranges for the first and last peaks (and maybe more)
 
@@ -390,7 +390,7 @@ BottomPixelRow = 250;
 % currently)
 nAnchor = npeaklambda([1,end]);  % essential to use the neon data
 
-% find the pixel that give the max value within these ranges
+% find the pixel that gives the max value within these ranges
 AnchorPixels = zeros(size(nAnchor));
 for i = 1:length(nAnchor),
     pixRange = [AnchorPeakRanges(i,1):AnchorPeakRanges(i,2)];
@@ -399,7 +399,7 @@ for i = 1:length(nAnchor),
     AnchorPixels(i) = min(pixRange) - 1 + idx;
 end
 
-end
+
 
 % even though pixel is not quite linear with wavelength, see if simple linear
 % wavelength spacing between these two extremes is good enough to find correct maxima
@@ -414,7 +414,42 @@ WL = WL0 + slope*(Pixels-6);
 % this makes pixel 6 be exactly WL0
 % and it makes pixel 774 (the other control point) be exactly the last neon wavelength    
 
-pause
+% ajb 2025.06.25 : we now have a rough wavelength (RWL) for each pixel. If we
+% center a region of RWL at a predicted neon calibration wavelength, what
+% size spectral window will successfully find the correct neon spot (as
+% opposed to a spot from a neighboring wavelength)?
+
+% test: choose neon calibration wavelength #8: 914.87 nm
+TestWL = npeaklambda(8);
+% select range of pixels centered around RWL of 914.87
+% does it fine the right spot?  -- should be pixel 419 or 420 on the old
+% plot
+
+% find the pixel corresponding to RWL
+[~, idx] = min(WL<TestWL);  % ajb note: I don't understand why < is correct
+% choose a region of N pixels around this estimated wavelength
+Space = 20;
+TestRange = [-Space:Space] + idx;
+% find the max value within this range
+WL(TestRange);
+% find the pixel associated with the maximum value
+[val, idx2] = max(neonImage(BottomPixelRow,TestRange));
+AbsolutePixel = min(TestRange) - 1 + idx2;
+% at Space = 20, there are two maxima - one is indeed at pixel 420; this
+% would correspond to correct calibration wavelength, and it happens to be
+% the global max
+% But the window was large enough that there was another peak almost as
+% close to the center of the window. So the two-wavelength approach is
+% apparently too poor of a fit - need more controls.
+figure
+plot(TestRange,neonImage(BottomPixelRow,TestRange))
+title('quick plot of peaks vs. pixels using 2-wavelegnth calibration')
+xlabel('pixel')
+ylabel('signal level (neon)')
+
+
+
+end
 
 % === ajb: all aberration will now be done before doing wavelength calibration
 % For each expected wavelength, find the closest match in the wavelength array.
