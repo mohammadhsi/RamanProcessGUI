@@ -368,17 +368,38 @@ if 1 % new test
 % Basic idea: define ranges within which there is no other peak present; this
 % allows the code to find the right peaks. 
 
-% first peak: 849.54 - currently (June 2025) occurs near pixel 6 of the lowest rows (~255)
-FirstPeakRange = [1,12];  
-% i.e. no other peak is close to this - range is this close only because
-% it's so close to the left edge 
+% Choosing a simple linear fit between pixel and wavelenth at 849 and 966
+% was slightly too far off in wavelength. At least one more control is
+% needed in order to sufficiently accurate wavelength to ensure the correct
+% peak is chosen.
 
-% last peak: 966.54 - currently occurs near pixel 774
-LastPeakRange = [750,800]; % no other peak is within 25 pixels of 774
+% Table of pixels and wavelengths for controls, using bottom row of neon
+% images
+ControlWL = npeaklambda([1, 7, 8, 15]);    % bared upon literature
+ControlPix = [6, 272, 420, 774];            % based upon neon image
+
+% trying to use the most isolated peaks, but may need to tailor the range
+% of pixels for each one (+/- value)
+ControlPixWidth = [5, 12, 15, 25];
+
+% if 0 % just keeping for now
+% % first peak: 849.54 - currently (June 2025) occurs near pixel 6 of the lowest rows (~255)
+% FirstPeakRange = [1,12];  
+% % i.e. no other peak is close to this - range is this close only because
+% % it's so close to the left edge 
+% 
+% % last peak: 966.54 - currently occurs near pixel 774
+% LastPeakRange = [750,800]; % no other peak is within 25 pixels of 774
+% 
+% end
 
 % array: each row contains the first and last index values in the range
-AnchorPeakRanges = [FirstPeakRange; 
-                    LastPeakRange];
+n = length(ControlPix);
+AnchorPixelLimits = zeros(n,2); % min and max value
+for i = 1:n
+    Width = ControlPixWidth(i);
+    AnchorPixelLimits(i,:) = ControlPix(i) + [-Width, Width];
+end
 
 % pixel range is the number of columns in raw mode: should be 1024
 Npixels = size(neonImage,2);
@@ -388,18 +409,24 @@ BottomPixelRow = 250;
 
 % find the pixels corresponding to the anchor peaks (first and last
 % currently)
-nAnchor = npeaklambda([1,end]);  % essential to use the neon data
+% nAnchor = npeaklambda([1,end]);  % essential to use the neon data
 
 % find the pixel that gives the max value within these ranges
-AnchorPixels = zeros(size(nAnchor));
-for i = 1:length(nAnchor),
-    pixRange = [AnchorPeakRanges(i,1):AnchorPeakRanges(i,2)];
+
+AnchorPixels = zeros(n,1);
+for i = 1:n,
+    pixRange = [AnchorPixelLimits(i,1):AnchorPixelLimits(i,2)];
     [val, idx] = max(neonImage(BottomPixelRow,pixRange));
     % need to add an offset of min(pixRange) - 1 to get absolute pixel values
     AnchorPixels(i) = min(pixRange) - 1 + idx;
 end
 
+pause
 
+
+% A linear fit to wavelength isn't good enough. Instead, fit to more than
+% two control points, using a polynomial.
+% s = spline(ControlPix, ControlWL,   )
 
 % even though pixel is not quite linear with wavelength, see if simple linear
 % wavelength spacing between these two extremes is good enough to find correct maxima
