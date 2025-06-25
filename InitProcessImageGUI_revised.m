@@ -362,7 +362,12 @@ pixelPositions = zeros(size(npeaklambda));  % Preallocate for pixel columns
 % close.
 
 if 1
+
 % === ajb: define pixel ranges for the first and last peaks (and maybe more)
+
+% Basic idea: define ranges within which there is no other peak present; this
+% allows the code to find the right peaks. 
+
 % first peak: 849.54 - currently (June 2025) occurs near pixel 6 of the lowest rows (~255)
 FirstPeakRange = [1,12];  
 % i.e. no other peak is close to this - range is this close only because
@@ -396,7 +401,20 @@ end
 
 end
 
+% even though pixel is not quite linear with wavelength, see if simple linear
+% wavelength spacing between these two extremes is good enough to find correct maxima
 
+% calculate ratio of DeltaLambda / DeltaPixel
+slope = (npeaklambda(end)-npeaklambda(1)) / (AnchorPixels(end) - AnchorPixels(1));
+% choose neon 1 as the starting point: AnchorPixels(1), WL = npeaklambda(1)
+WL0 = npeaklambda(1);
+AnchorPix = AnchorPixels(1);
+% calculate wavelength values for pixels from 1 to 1024
+WL = WL0 + slope*(Pixels-6); 
+% this makes pixel 6 be exactly WL0
+% and it makes pixel 774 (the other control point) be exactly the last neon wavelength    
+
+pause
 
 % === ajb: all aberration will now be done before doing wavelength calibration
 % For each expected wavelength, find the closest match in the wavelength array.
