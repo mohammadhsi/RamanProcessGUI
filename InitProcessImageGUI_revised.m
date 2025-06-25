@@ -275,8 +275,10 @@ close all
 
 
 % using a dialog popup - ajb
-dataDir = uigetdir('C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12');
-% dataDir =  'C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12';
+% dataDir = uigetdir('C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12');
+
+% hardwired when needed:
+dataDir =  'C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12';
 
 whiteLampFile = fullfile(dataDir, 'whitelamp.mat');
 neonFile = fullfile(dataDir, 'neon.mat');
@@ -421,26 +423,16 @@ for i = 1:n,
     AnchorPixels(i) = min(pixRange) - 1 + idx;
 end
 
-pause
-
 
 % A linear fit to wavelength isn't good enough. Instead, fit to more than
-% two control points, using a polynomial.
-% s = spline(ControlPix, ControlWL,   )
-
-% even though pixel is not quite linear with wavelength, see if simple linear
-% wavelength spacing between these two extremes is good enough to find correct maxima
-
-% calculate ratio of DeltaLambda / DeltaPixel
-slope = (npeaklambda(end)-npeaklambda(1)) / (AnchorPixels(end) - AnchorPixels(1));
-% choose neon 1 as the starting point: AnchorPixels(1), WL = npeaklambda(1)
-WL0 = npeaklambda(1);
-AnchorPix = AnchorPixels(1);
-% calculate wavelength values for pixels from 1 to 1024
-WL = WL0 + slope*(Pixels-6); 
-% this makes pixel 6 be exactly WL0
-% and it makes pixel 774 (the other control point) be exactly the last neon wavelength    
-
+% two control points, using a polynomial - call the result the estimated
+% wavelength
+estWL = spline(ControlPix, ControlWL, Pixels); 
+% this provides a cubic spline that fits the four control wavelengths 
+% ajb note: although the fit will not be that good past the 966 neon peak,
+% that doesn't matter because the only goal for now is to align the neon
+% peaks.
+   
 % ajb 2025.06.25 : we now have a rough wavelength (RWL) for each pixel. If we
 % center a region of RWL at a predicted neon calibration wavelength, what
 % size spectral window will successfully find the correct neon spot (as
@@ -453,24 +445,18 @@ TestWL = npeaklambda(8);
 % plot
 
 % find the pixel corresponding to RWL
-[~, idx] = min(WL<TestWL);  % ajb note: I don't understand why < is correct
+[~, idx] = min(estWL<TestWL);  % ajb note: I don't understand why < is correct
 % choose a region of N pixels around this estimated wavelength
 Space = 20;
 TestRange = [-Space:Space] + idx;
-% find the max value within this range
-WL(TestRange);
 % find the pixel associated with the maximum value
 [val, idx2] = max(neonImage(BottomPixelRow,TestRange));
 AbsolutePixel = min(TestRange) - 1 + idx2;
-% at Space = 20, there are two maxima - one is indeed at pixel 420; this
-% would correspond to correct calibration wavelength, and it happens to be
-% the global max
-% But the window was large enough that there was another peak almost as
-% close to the center of the window. So the two-wavelength approach is
-% apparently too poor of a fit - need more controls.
+
+
 figure
 plot(TestRange,neonImage(BottomPixelRow,TestRange))
-title('quick plot of peaks vs. pixels using 2-wavelegnth calibration')
+title('quick plot of peaks vs. pixels using spline calibration')
 xlabel('pixel')
 ylabel('signal level (neon)')
 
