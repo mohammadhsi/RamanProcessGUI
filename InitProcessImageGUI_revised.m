@@ -342,47 +342,90 @@ hold off;
 %  the *old* initprocess method (via the GUI, mapping from pixel spacing to wavelength spacing)
 
 % === ajb: Commenting this out, replacing with different approach
-% load(fullfile(dataDir, 'initprocess', 'WV24041682_E_D2P1_MD05.mat'), 'process');
-% wavelengths = process.wavelength;  % Reference wavelength scale.
+load(fullfile(dataDir, 'initprocess', 'WV24041682_E_D2P1_MD05.mat'), 'process');
+wavelengths = process.wavelength;  % Reference wavelength scale.
 
 % -ajb : the process.wavelength values are not spaced linearly. The command >> plot(wavelengths)
 % makes this visually clear: the x axis is pixels, and the data plot is not a straight line (y
 % spacings get smaller at the larger pixel values)
 
-% -ajb 2025.06.23 : New idea is to stay in PIXEL mode for all of the aberration correct
+% -ajb 2025.06.23 : New idea is to stay in PIXEL mode for all of the aberration corrections
 
 % Define the expected neon wavelengths (in nm).
 npeaklambda = [849.54, 859.13, 865.44, 878.06, 885.39, 886.55, 891.95, 914.87, 920.18, 930.09, 932.65, 942.54, 953.42, 954.74, 966.54]';
 pixelPositions = zeros(size(npeaklambda));  % Preallocate for pixel columns
 
+
+%% testing a new way to locate all of the peaks 
+% Anchoring to the first and last peak pixels (of the lowest rows) by
+% knowing a reasonable pixel range within which no other peak will be
+% close.
+
+if 1
+% === ajb: define pixel ranges for the first and last peaks (and maybe more)
+% first peak: 849.54 - currently (June 2025) occurs near pixel 6 of the lowest rows (~255)
+FirstPeakRange = [1,12];  
+% i.e. no other peak is close to this - range is this close only because
+% it's so close to the left edge 
+
+% last peak: 966.54 - currently occurs near pixel 774
+LastPeakRange = [750,800]; % no other peak is within 25 pixels of 774
+
+% array: each row contains the first and last index values in the range
+AnchorPeakRanges = [FirstPeakRange; 
+                    LastPeakRange];
+
+% pixel range is the number of columns in raw mode: should be 1024
+Npixels = size(neonImage,2);
+Pixels = 1:Npixels;
+% choose pixel row to be near the bottom
+BottomPixelRow = 250;
+
+% find the pixels corresponding to the anchor peaks (first and last
+% currently)
+nAnchor = npeaklambda([1,end]);  % essential to use the neon data
+
+% find the pixel that give the max value within these ranges
+AnchorPixels = zeros(size(nAnchor));
+for i = 1:length(nAnchor),
+    pixRange = [AnchorPeakRanges(i,1):AnchorPeakRanges(i,2)];
+    [val, idx] = max(neonImage(BottomPixelRow,pixRange));
+    % need to add an offset of min(pixRange) - 1 to get absolute pixel values
+    AnchorPixels(i) = min(pixRange) - 1 + idx;
+end
+
+end
+
+
+
 % === ajb: all aberration will now be done before doing wavelength calibration
 % For each expected wavelength, find the closest match in the wavelength array.
-% for i = 1:length(npeaklambda)
-%     [~, idx] = min(abs(wavelengths - npeaklambda(i)));
-%     pixelPositions(i) = idx;
-% end
+for i = 1:length(npeaklambda)
+    [~, idx] = min(abs(wavelengths - npeaklambda(i)));
+    pixelPositions(i) = idx;
+end
 
 % === This image isn't needed; we will deal with wavelength later - ajb 2025.06.23
 % Display the neon image with vertical markers
 
-% figure(3);
-% imagesc(neonImage);
-% set(gcf, 'Color', 'w');   % White figure background
-% axis image;
-% hold on;
-% for i = 1:length(pixelPositions)
-%     col = pixelPositions(i);
-%     % Draw a vertical red line at the detected neon column.
-%     line([col col], [1 Ny], 'Color', 'r', 'LineWidth', 2);
-%     % Label the line with the corresponding wavelength.
-%     text(col + 5, Ny/2, num2str(npeaklambda(i)), 'Color', 'yellow', ...
-%          'Rotation', 90, 'FontWeight', 'bold', 'FontSize', 10);
-% end
-% xlabel('Pixel Column (Wavelength Scale)');
-% ylabel('Fiber Row');
-% title('Matched Neon Columns with Wavelengths');
-% set(gca, 'XTick', pixelPositions, 'XTickLabel', num2str(npeaklambda, '%.2f'));
-% hold off;
+figure(3);
+imagesc(neonImage);
+set(gcf, 'Color', 'w');   % White figure background
+axis image;
+hold on;
+for i = 1:length(pixelPositions)
+    col = pixelPositions(i);
+    % Draw a vertical red line at the detected neon column.
+    line([col col], [1 Ny], 'Color', 'r', 'LineWidth', 2);
+    % Label the line with the corresponding wavelength.
+    text(col + 5, Ny/2, num2str(npeaklambda(i)), 'Color', 'yellow', ...
+         'Rotation', 90, 'FontWeight', 'bold', 'FontSize', 10);
+end
+xlabel('Neon Spot Column (from bottom row)');
+ylabel('Fiber Row');
+title('Matched Neon Columns with Wavelengths');
+set(gca, 'XTick', pixelPositions, 'XTickLabel', num2str(npeaklambda, '%.2f'));
+hold off;
 
 %% ========================================================================
 % STEP 4: COMBINE & ALIGN CONTROL POINTS
@@ -390,8 +433,15 @@ pixelPositions = zeros(size(npeaklambda));  % Preallocate for pixel columns
 % with each fiber row. The ideal control point for a given neon line is 
 % (idealX, fiberRow) where idealX comes from the wavelength lookup.
 % ========================================================================
+
+% ajb note, 2025.06.23: in version 2 we don't use wavelength at this point, so it will be a while before
+% idealX is ever used)
+
 detectedFiberPositions = locs;      % Y positions (from white lamp)
+% ajb note: the Y positions are currently confined to be integers; doesn't have to stay that way
+
 detectedNeonColumns = pixelPositions; % X positions (from neon wavelengths)
+% ajb notes: how do we connect pixel positions and wavelength positions robustly?
 
 % Create a grid of ideal control points.
 [gridX, gridY] = meshgrid(detectedNeonColumns, detectedFiberPositions);
