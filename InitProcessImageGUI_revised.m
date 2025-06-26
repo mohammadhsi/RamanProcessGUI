@@ -377,7 +377,7 @@ if 1 % new test
 
 % Table of pixels and wavelengths for controls, using bottom row of neon
 % images
-ControlWL = npeaklambda([1, 7, 8, 15]);    % bared upon literature
+ControlWL = npeaklambda([1, 7, 8, 15]);    % based upon literature
 ControlPix = [6, 272, 420, 774];            % based upon neon image
 
 % trying to use the most isolated peaks, but may need to tailor the range
@@ -424,43 +424,55 @@ for i = 1:n,
 end
 
 
-% A linear fit to wavelength isn't good enough. Instead, fit to more than
-% two control points, using a polynomial - call the result the estimated
-% wavelength
+% cubic spline that fits four control wavelengths, supplying a full vector
+% of estimated wavelengths
 estWL = spline(ControlPix, ControlWL, Pixels); 
-% this provides a cubic spline that fits the four control wavelengths 
 % ajb note: although the fit will not be that good past the 966 neon peak,
 % that doesn't matter because the only goal for now is to align the neon
 % peaks.
-   
-% ajb 2025.06.25 : we now have a rough wavelength (RWL) for each pixel. If we
-% center a region of RWL at a predicted neon calibration wavelength, what
-% size spectral window will successfully find the correct neon spot (as
-% opposed to a spot from a neighboring wavelength)?
+
+% === check ability to fit index for *all* calibrated neon peaks
+
+for i = 1:length(npeaklambda)
+    TestWL = npeaklambda(i);
+    % locate the largest pixel index whose value is nonzero; this
+    % specifies the index of the chosen neon peak
+    idx = find(estWL<TestWL,1,"last");
+    % choose a region of +- N pixels around this estimated wavelength
+    Space = 4; 
+        % can't go lower than that for the first pixel; maybe make others
+        % wider
+    TestRange = [-Space:Space] + idx;
+    % find the pixel associated with the maximum value
+    [val, idx2] = max(neonImage(BottomPixelRow,TestRange));
+    AbsolutePixel(i) = min(TestRange) - 1 + idx2;
+end
+
+% hand-checked max peak values for all neon peaks at BottomPixelRow row
+% ajb: done on 2025.06.26
+NeonMaxPixel = [6,65,105,184,230,237,272,420,455,520,538,605,680,689,774];
+
+% plot the two values next to each other
+figure
+plot(NeonMaxPixel, 0.1, 'ko');
+hold on
+plot(AbsolutePixel, -0.1, 'ro');
+legend('hand-determined', 'algorithm estimated')
+Height = 1;
+ylim([-Height Height])
 
 % real test: choose neon calibration wavelength #10: 930.09 nm
-TestWL = npeaklambda(10);
+% TestWL = npeaklambda(10);
 % select range of pixels centered around this wavelength
 % does it find the right spot?  -- should be pixel 520
 
-% locate the largest pixel index whose value is nonzero; this
-% specifies the index of the chosen neon peak
-idx = find(estWL<TestWL,1,"last");
-
-% choose a region of N pixels around this estimated wavelength
-Space = 20;
-TestRange = [-Space:Space] + idx;
-% find the pixel associated with the maximum value
-[val, idx2] = max(neonImage(BottomPixelRow,TestRange));
-AbsolutePixel = min(TestRange) - 1 + idx2;
 
 
-
-figure
-plot(TestRange,neonImage(BottomPixelRow,TestRange))
-title('quick plot of peaks vs. pixels using spline calibration')
-xlabel('pixel')
-ylabel('signal level (neon)')
+% figure
+% plot(TestRange,neonImage(BottomPixelRow,TestRange))
+% title('quick plot of peaks vs. pixels using spline calibration')
+% xlabel('pixel')
+% ylabel('signal level (neon)')
 
 
 
