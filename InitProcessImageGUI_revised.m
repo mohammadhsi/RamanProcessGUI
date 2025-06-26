@@ -275,10 +275,10 @@ close all
 
 
 % using a dialog popup - ajb
-% dataDir = uigetdir('C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12');
+dataDir = uigetdir('C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12');
 
 % hardwired when needed:
-dataDir =  'C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12';
+% dataDir =  'C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12';
 
 whiteLampFile = fullfile(dataDir, 'whitelamp.mat');
 neonFile = fullfile(dataDir, 'neon.mat');
@@ -344,8 +344,8 @@ hold off;
 %  the *old* initprocess method (via the GUI, mapping from pixel spacing to wavelength spacing)
 
 % === ajb: Commenting this out, replacing with different approach
-load(fullfile(dataDir, 'initprocess', 'WV24041682_E_D2P1_MD05.mat'), 'process');
-wavelengths = process.wavelength;  % Reference wavelength scale.
+% load(fullfile(dataDir, 'initprocess', 'WV24041682_E_D2P1_MD05.mat'), 'process');
+% wavelengths = process.wavelength;  % Reference wavelength scale.
 
 % -ajb : the process.wavelength values are not spaced linearly. The command >> plot(wavelengths)
 % makes this visually clear: the x axis is pixels, and the data plot is not a straight line (y
@@ -473,38 +473,36 @@ xlabel('pixel index')
 % xlabel('pixel')
 % ylabel('signal level (neon)')
 
-
-
 end
 
 % === ajb: all aberration will now be done before doing wavelength calibration
 % For each expected wavelength, find the closest match in the wavelength array.
-for i = 1:length(npeaklambda)
-    [~, idx] = min(abs(wavelengths - npeaklambda(i)));
-    pixelPositions(i) = idx;
-end
+% for i = 1:length(npeaklambda)
+%     [~, idx] = min(abs(wavelengths - npeaklambda(i)));
+%     pixelPositions(i) = idx;
+% end
 
 % === This image isn't needed; we will deal with wavelength later - ajb 2025.06.23
 % Display the neon image with vertical markers
 
-figure(3);
-imagesc(neonImage);
-set(gcf, 'Color', 'w');   % White figure background
-axis image;
-hold on;
-for i = 1:length(pixelPositions)
-    col = pixelPositions(i);
-    % Draw a vertical red line at the detected neon column.
-    line([col col], [1 Ny], 'Color', 'r', 'LineWidth', 2);
-    % Label the line with the corresponding wavelength.
-    text(col + 5, Ny/2, num2str(npeaklambda(i)), 'Color', 'yellow', ...
-         'Rotation', 90, 'FontWeight', 'bold', 'FontSize', 10);
-end
-xlabel('Neon Spot Column (from bottom row)');
-ylabel('Fiber Row');
-title('Matched Neon Columns with Wavelengths');
-set(gca, 'XTick', pixelPositions, 'XTickLabel', num2str(npeaklambda, '%.2f'));
-hold off;
+% figure(3);
+% imagesc(neonImage);
+% set(gcf, 'Color', 'w');   % White figure background
+% axis image;
+% hold on;
+% for i = 1:length(pixelPositions)
+%     col = pixelPositions(i);
+%     % Draw a vertical red line at the detected neon column.
+%     line([col col], [1 Ny], 'Color', 'r', 'LineWidth', 2);
+%     % Label the line with the corresponding wavelength.
+%     text(col + 5, Ny/2, num2str(npeaklambda(i)), 'Color', 'yellow', ...
+%          'Rotation', 90, 'FontWeight', 'bold', 'FontSize', 10);
+% end
+% xlabel('Neon Spot Column (from bottom row)');
+% ylabel('Fiber Row');
+% title('Matched Neon Columns with Wavelengths');
+% set(gca, 'XTick', pixelPositions, 'XTickLabel', num2str(npeaklambda, '%.2f'));
+% hold off;
 
 %% ========================================================================
 % STEP 4: COMBINE & ALIGN CONTROL POINTS
@@ -520,13 +518,14 @@ detectedFiberPositions = locs;      % Y positions (from white lamp)
 % ajb : === updated version of neon columns
 %
 % we are now using pixels taken from revised Step 3 (see above), using the
-% variable AbsolutePixel;
+% variable AbsolutePixel:
 detectedNeonColumns = AbsolutePixel;
-% ajb : for now, since pixelPositions is used downstream, redefine this
-% variable to be the same as AbsolutePixel
+% since pixelPositions is used downstream, redefine this
+% variable to be the same as AbsolutePixel as well
 V1pixelPositions = pixelPositions;
 pixelPositions = AbsolutePixel; % X positions (locating neon wavelengths)
-
+% === all subsequent comments about "wavelength lookup" now relate to Step
+% 3's "AbsolutePixel" variable
 
 % Create a grid of *ideal* control points.
 [gridX, gridY] = meshgrid(detectedNeonColumns, detectedFiberPositions);
@@ -719,6 +718,7 @@ dx_all = zeros(numFibers, numColumns);
 dy_all = zeros(numFibers, numColumns);
 
 % Loop over each neon column and extract the shifts for each fiber.
+% ajb : i.e. each x and y shift for this particular neon wavelength's image
 for k = 1:numColumns
     % Retrieve the refined control points from Step 5.
     % idealCP contains the ideal control points: [idealX, idealY],
@@ -735,7 +735,9 @@ for k = 1:numColumns
     dy_all(:,k) = idealCP(:,2) - actualCP(:,2); % dy: shift in Y
 end
 
-% Average the shifts across all neon columns for each fiber.
+% Average the shifts across all neon columns for each fiber.  
+    % === ajb : Y values are all zero, but dx values are not 
+    % ajb : what is the value of an averaged shift?
 % This yields one dx and one dy per fiber row.
 dx_fiber = mean(dx_all, 2);  % [numFibers x 1] vector for horizontal shifts.
 dy_fiber = mean(dy_all, 2);  % [numFibers x 1] vector for vertical shifts.
@@ -745,17 +747,40 @@ global_fiber_rows = detectedFiberPositions;
 
 % Interpolate these per-fiber shifts to every row in the image.
 allRows = (1:Ny)';  % All row indices in the image.
+% ajb : this next line is what does the horizontal interpolation part 
+
+% I am presuming that our dx steps are accurate at the single-pixel level
+% but have some residual warp at the sub-pixel level
+%     I am guessing there is a slow drift and that around row 95 there is a
+%     discrete crossover due to either a round or floor quantization
 global_dx = interp1(global_fiber_rows, dx_fiber, allRows, 'linear', 'extrap');
+% global dy does nothing
 global_dy = interp1(global_fiber_rows, dy_fiber, allRows, 'linear', 'extrap');
 
 % --- Build a global coordinate grid for the image and apply the shifts ---
+
+% ajb : let's use interp2 to subsample the neonImage data as well
+% NeonIm = double(neonImage);
+% Vq = interp2(NeonIm);
+% this created one extra pixel between any two pixels in the same row or
+% column
+
 [Xgrid, Ygrid] = meshgrid(1:Nx, 1:Ny);  % Create coordinate grids for the full image.
 
 % For each row, subtract the corresponding shift (applied uniformly across the row):
 %   X_corrected = X_original - global_dx(row)
 %   Y_corrected = Y_original - global_dy(row)
-X_corrected_global = Xgrid - repmat(global_dx, 1, Nx);
-Y_corrected_global = Ygrid - repmat(global_dy, 1, Nx);
+
+% ajb : sampling at finer X spacing requires a denser X grid
+%   - question is, how to make it denser the right way?
+%   The repmat part is straightforward: change Nx to 2*Nx - 1
+%   Making a denser meshgrid is also not that hard.
+
+% Step = 1;   % original
+Step = 0.5; % twice as dense in X
+[BigXgrid, BigYgrid] = meshgrid(1:Step:Nx, 1:Ny);
+X_corrected_global = BigXgrid - repmat(global_dx, 1, 2*Nx-1);
+Y_corrected_global = BigYgrid - repmat(global_dy, 1, 2*Nx-1);
 
 % Use interp2 to re-sample the entire neon image at the corrected coordinates.
 % 'spline' interpolation for smoothness.
@@ -779,7 +804,8 @@ colorbar;
 % Subplot 2: Globally Corrected Neon Image.
 subplot(2,1,2);
 imagesc(correctedImage);
-axis image;
+% axis image;
+axis fill;
 title('Globally Corrected Neon Image');
 xlabel('X (pixels)');
 ylabel('Y (pixels)');
@@ -792,6 +818,7 @@ colorbar;
 %% Tylenol check
 
 % Load neon lamp data and extract the spectrum.
+ % (need to change back to uigetDir to make this work)
 tylenolFile = fullfile(dataDir, 'tylenol.mat');
 load(tylenolFile, 'RawData'); 
 tylenolData = RawData.Spectrum; 
@@ -879,7 +906,7 @@ colorbar;
 % end of new block of aberration correction
 
 
-
+pause
 
 %% Options
 
