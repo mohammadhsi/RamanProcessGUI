@@ -438,10 +438,10 @@ estWL = spline(ControlPix, ControlWL, Pixels);
 % size spectral window will successfully find the correct neon spot (as
 % opposed to a spot from a neighboring wavelength)?
 
-% test: choose neon calibration wavelength #8: 914.87 nm
+% real test: choose neon calibration wavelength #10: 930.09 nm
 TestWL = npeaklambda(8);
 % select range of pixels centered around RWL of 914.87
-% does it fine the right spot?  -- should be pixel 419 or 420 on the old
+% does it find the right spot?  -- should be pixel 419 or 420 on the old
 % plot
 
 % find the pixel corresponding to RWL
