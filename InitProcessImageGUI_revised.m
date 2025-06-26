@@ -460,13 +460,12 @@ plot(AbsolutePixel, -0.1, 'ro');
 legend('hand-determined', 'algorithm estimated')
 Height = 1;
 ylim([-Height Height])
+xlabel('pixel index')
 
-% real test: choose neon calibration wavelength #10: 930.09 nm
-% TestWL = npeaklambda(10);
-% select range of pixels centered around this wavelength
-% does it find the right spot?  -- should be pixel 520
-
-
+% Result: the hand-picked and automated results are mostly equal,
+% occasionally differing by a single pixel. 
+% In all cases the correct neon
+% peak was chosen, even though there were only four control wavelengths.
 
 % figure
 % plot(TestRange,neonImage(BottomPixelRow,TestRange))
@@ -514,16 +513,22 @@ hold off;
 % (idealX, fiberRow) where idealX comes from the wavelength lookup.
 % ========================================================================
 
-% ajb note, 2025.06.23: in version 2 we don't use wavelength at this point, so it will be a while before
-% idealX is ever used)
-
 detectedFiberPositions = locs;      % Y positions (from white lamp)
 % ajb note: the Y positions are currently confined to be integers; doesn't have to stay that way
 
-detectedNeonColumns = pixelPositions; % X positions (from neon wavelengths)
-% ajb notes: how do we connect pixel positions and wavelength positions robustly?
 
-% Create a grid of ideal control points.
+% ajb : === updated version of neon columns
+%
+% we are now using pixels taken from revised Step 3 (see above), using the
+% variable AbsolutePixel;
+detectedNeonColumns = AbsolutePixel;
+% ajb : for now, since pixelPositions is used downstream, redefine this
+% variable to be the same as AbsolutePixel
+V1pixelPositions = pixelPositions;
+pixelPositions = AbsolutePixel; % X positions (locating neon wavelengths)
+
+
+% Create a grid of *ideal* control points.
 [gridX, gridY] = meshgrid(detectedNeonColumns, detectedFiberPositions);
 combinedControlPoints = [gridX(:), gridY(:)];
 
@@ -536,9 +541,11 @@ hold on;
 for i = 1:size(combinedControlPoints, 1)
     x = combinedControlPoints(i, 1);
     y = combinedControlPoints(i, 2);
-    plot(x, y, 'go', 'MarkerSize', 5, 'LineWidth', 1.5);
+    plot(x, y, 'go', 'MarkerSize', 1, 'LineWidth', 0.5);
 end 
 title('Combined Control Points on Neon Image');
+axis fill
+axis ij
 hold off;
 
 %% ========================================================================
