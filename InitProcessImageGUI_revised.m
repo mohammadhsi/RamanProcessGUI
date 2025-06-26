@@ -439,19 +439,21 @@ estWL = spline(ControlPix, ControlWL, Pixels);
 % opposed to a spot from a neighboring wavelength)?
 
 % real test: choose neon calibration wavelength #10: 930.09 nm
-TestWL = npeaklambda(8);
-% select range of pixels centered around RWL of 914.87
-% does it find the right spot?  -- should be pixel 419 or 420 on the old
-% plot
+TestWL = npeaklambda(10);
+% select range of pixels centered around this wavelength
+% does it find the right spot?  -- should be pixel 520
 
-% find the pixel corresponding to RWL
-[~, idx] = min(estWL<TestWL);  % ajb note: I don't understand why < is correct
+% locate the largest pixel index whose value is nonzero; this
+% specifies the index of the chosen neon peak
+idx = find(estWL<TestWL,1,"last");
+
 % choose a region of N pixels around this estimated wavelength
 Space = 20;
 TestRange = [-Space:Space] + idx;
 % find the pixel associated with the maximum value
 [val, idx2] = max(neonImage(BottomPixelRow,TestRange));
 AbsolutePixel = min(TestRange) - 1 + idx2;
+
 
 
 figure
