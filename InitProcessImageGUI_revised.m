@@ -738,6 +738,8 @@ end
 % ajb 2025.06.27 : figure out why/if there should be an averaged shift.
 % It does not make sense to me to average.
 
+
+
 % Average the shifts across all neon columns for each fiber.  
     % === ajb : Y values are all zero, but dx values are not 
     % ajb : what is the value of an averaged shift?
