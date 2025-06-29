@@ -733,9 +733,11 @@ end
 numFibers = length(detectedFiberPositions);  % number of fiber rows (ideal Y's)
 numColumns = length(pixelPositions);           % number of neon lines
 
-% Preallocate matrices to store dx and dy shifts for each fiber and each neon column.
-dx_all = zeros(numFibers, numColumns);
-dy_all = zeros(numFibers, numColumns);
+% Preallocate matrices to store X and Y values for each fiber and each neon column.
+All_actualCP_X = zeros(numFibers, numColumns);
+All_actualCP_X = zeros(numFibers, numColumns);
+All_idealCP_X = zeros(numFibers, numColumns);
+All_idealCP_Y = zeros(numFibers, numColumns);
 
 % Loop over each neon column and extract the shifts for each fiber.
 % ajb : i.e. each x and y shift for this particular neon wavelength's image
@@ -750,11 +752,26 @@ for k = 1:numColumns
     % [refined_actualX, refined_actualY]
     actualCP = allActualControlPoints{k};   % Size: [numFibers x 2]
     
-    % Compute the per-fiber horizontal and vertical shifts for this neon column.
-    dx_all(:,k) = idealCP(:,1) - actualCP(:,1); % dx: shift in X
-    dy_all(:,k) = idealCP(:,2) - actualCP(:,2); % dy: shift in Y
+    % ajb : create matrices of the actual and ideal control points (rather
+    % than just the dx_all and dy_all differences
+    All_actualCP_X(:,k) = actualCP(:,1);
+    All_actualCP_Y(:,k) = actualCP(:,2);
+    All_idealCP_X(:,k) = idealCP(:,1);
+    All_idealCP_Y(:,k) = idealCP(:,2);
+    % ajb : Compute the per-fiber horizontal and vertical shifts for this neon column.
+    % dx_all(:,k) = All_idealCP_X(:,k) - All_actualCP_X(:,k); % dx: shift in X
+    % dy_all(:,k) = All_idealCP_Y(:,k) - All_actualCP_Y(:,k); % dy: shift in Y
+    % % previous version of dx_all and dy_all
+    % dx_all(:,k) = idealCP(:,1) - actualCP(:,1); % dx: shift in X
+    % dy_all(:,k) = idealCP(:,2) - actualCP(:,2); % dy: shift in Y
 
 end
+
+% create dx_all and dy_all from ideal and actual CP X and Y matrices
+dx_all = All_idealCP_X - All_actualCP_X;
+dy_all = All_idealCP_Y - All_actualCP_Y;
+
+
 
 % ajb 2025.06.27 : figure out why/if there should be an averaged shift.
 % It does not make sense to me to average.
@@ -764,18 +781,18 @@ end
 % horizontal shifts. 
 
 % ajb 2025.06.28 : 
-% === plot the actualCP values 
-figure(100)
-cla
-hold off
-for k = 1:numColumns
-% for k = [6 11 14]
-  actualCP = allActualControlPoints{k};
-  plot(actualCP(:,1),actualCP(:,2),'ro','MarkerSize',2);
-  hold on
-end
-axis ij
-xlim([0 800])
+% === plot the actualCP values and create a 2D matrix
+
+% figure(100)
+% cla
+% hold off
+% for k = 1:numColumns
+%   actualCPAll(:,k) = allActualControlPoints{k};
+%   plot(actualCP(:,1),actualCP(:,2),'ro','MarkerSize',2);
+%   hold on
+% end
+% axis ij
+% xlim([0 800])
 
 % The X window region creates shifts that depend upon the window width.
 % When I use Space = 4 (\pm four pixels around AbsolutePixel position) for
@@ -932,7 +949,7 @@ figure('Name', 'Raw vs. Globally Corrected Data Image');
 [ChosenFile,dataDir] = uigetfile('C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12');
 myFile = fullfile(dataDir, ChosenFile);
 load(myFile, 'RawData'); 
-myData = RawData.Spectrum; 
+myData = RawData.Spectrum;  
 myImage = myData(1:Range,:);
 
 McorrectedImage = interp2(1:Nx, 1:Ny, double(myImage), ...
