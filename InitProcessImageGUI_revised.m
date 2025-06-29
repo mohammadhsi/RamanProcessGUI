@@ -275,10 +275,10 @@ close all
 
 
 % using a dialog popup - ajb
-dataDir = uigetdir('C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12');
+% dataDir = uigetdir('C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12');
 
 % hardwired when needed:
-% dataDir =  'C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12';
+dataDir =  'C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12';
 
 whiteLampFile = fullfile(dataDir, 'whitelamp.mat');
 neonFile = fullfile(dataDir, 'neon.mat');
@@ -353,9 +353,18 @@ hold off;
 
 % -ajb 2025.06.23 : New idea is to stay in PIXEL mode for all of the aberration corrections
 
-% Define the expected neon wavelengths (in nm).
-npeaklambda = [849.54, 859.13, 865.44, 878.06, 885.39, 886.55, 891.95, 914.87, 920.18, 930.09, 932.65, 942.54, 953.42, 954.74, 966.54]';
-pixelPositions = zeros(size(npeaklambda));  % Preallocate for pixel columns
+% List of all calibrated neon wavelengths (in nm).
+AllPeaklambda = [849.54, 859.13, 865.44, 878.06, 885.39, 886.55, 891.95, 914.87, 920.18, 930.09, 932.65, 942.54, 953.42, 954.74, 966.54]';
+pixelPositions = zeros(size(AllPeaklambda));  % Preallocate for pixel columns
+
+% ajb: eliminate a few that are too close to a brighter peak and therefore
+% harder to find via a window search
+% These are positions 6, 11, and 14 in the npeaklambda variable as of this
+% line
+FullList = 1:size(AllPeaklambda);
+Eliminate = [6, 11, 14];
+% create the list of wavelengths that will be used 
+npeaklambda = AllPeaklambda(setdiff(FullList,Eliminate));
 
 
 %% testing a new way to locate all of the peaks 
@@ -377,7 +386,10 @@ if 1 % new test
 
 % Table of pixels and wavelengths for controls, using bottom row of neon
 % images
-ControlWL = npeaklambda([1, 7, 8, 15]);    % based upon literature
+% ControlWL = npeaklambda([1, 7, 8, 15]);    % full list, based upon literature
+% alternative with 6, 11, 14 WL skipped
+ControlWL = npeaklambda([1, 6, 7, 12]);    % reduced list, based upon literature
+
 ControlPix = [6, 272, 420, 774];            % based upon neon image
 
 % trying to use the most isolated peaks, but may need to tailor the range
@@ -590,6 +602,14 @@ originalNeonImage = neonImage;
 % Parameters for horizontal centroid detection.
 halfWin = 8;           % Refined (sub-pixel) window half-width in X.
 searchWin = 15;        % Initial horizontal search window half-width in X.
+% ajb : Perhaps one or both of these windows is too large. I used a smaller
+% window of Space = 4 in Step 3 and confirmed that the correct neon WL was
+% grabbed.
+
+% Try using that narrower value
+% halfWin = Space;
+% searchWin = Space;
+
 
 % Parameter for vertical search (to refine Y).
 verticalSearchHalf = 3; % Vertical window: ±3 rows around the ideal Y.
@@ -713,9 +733,11 @@ end
 numFibers = length(detectedFiberPositions);  % number of fiber rows (ideal Y's)
 numColumns = length(pixelPositions);           % number of neon lines
 
-% Preallocate matrices to store dx and dy shifts for each fiber and each neon column.
-dx_all = zeros(numFibers, numColumns);
-dy_all = zeros(numFibers, numColumns);
+% Preallocate matrices to store X and Y values for each fiber and each neon column.
+All_actualCP_X = zeros(numFibers, numColumns);
+All_actualCP_X = zeros(numFibers, numColumns);
+All_idealCP_X = zeros(numFibers, numColumns);
+All_idealCP_Y = zeros(numFibers, numColumns);
 
 % Loop over each neon column and extract the shifts for each fiber.
 % ajb : i.e. each x and y shift for this particular neon wavelength's image
@@ -730,13 +752,57 @@ for k = 1:numColumns
     % [refined_actualX, refined_actualY]
     actualCP = allActualControlPoints{k};   % Size: [numFibers x 2]
     
-    % Compute the per-fiber horizontal and vertical shifts for this neon column.
-    dx_all(:,k) = idealCP(:,1) - actualCP(:,1); % dx: shift in X
-    dy_all(:,k) = idealCP(:,2) - actualCP(:,2); % dy: shift in Y
+    % ajb : create matrices of the actual and ideal control points (rather
+    % than just the dx_all and dy_all differences
+    All_actualCP_X(:,k) = actualCP(:,1);
+    All_actualCP_Y(:,k) = actualCP(:,2);
+    All_idealCP_X(:,k) = idealCP(:,1);
+    All_idealCP_Y(:,k) = idealCP(:,2);
+    % ajb : Compute the per-fiber horizontal and vertical shifts for this neon column.
+    % dx_all(:,k) = All_idealCP_X(:,k) - All_actualCP_X(:,k); % dx: shift in X
+    % dy_all(:,k) = All_idealCP_Y(:,k) - All_actualCP_Y(:,k); % dy: shift in Y
+    % % previous version of dx_all and dy_all
+    % dx_all(:,k) = idealCP(:,1) - actualCP(:,1); % dx: shift in X
+    % dy_all(:,k) = idealCP(:,2) - actualCP(:,2); % dy: shift in Y
+
 end
+
+% create dx_all and dy_all from ideal and actual CP X and Y matrices
+dx_all = All_idealCP_X - All_actualCP_X;
+dy_all = All_idealCP_Y - All_actualCP_Y;
+
+
 
 % ajb 2025.06.27 : figure out why/if there should be an averaged shift.
 % It does not make sense to me to average.
+% Different neon wavelengths have (slightly) different spatial patterns due
+% to aberrations -- this is what we want to correct.
+% Averaging would wash these out and cause all columns to have the same
+% horizontal shifts. 
+
+% ajb 2025.06.28 : 
+% === plot the actualCP values and create a 2D matrix
+
+% figure(100)
+% cla
+% hold off
+% for k = 1:numColumns
+%   actualCPAll(:,k) = allActualControlPoints{k};
+%   plot(actualCP(:,1),actualCP(:,2),'ro','MarkerSize',2);
+%   hold on
+% end
+% axis ij
+% xlim([0 800])
+
+% The X window region creates shifts that depend upon the window width.
+% When I use Space = 4 (\pm four pixels around AbsolutePixel position) for
+% both the full and 
+% there are several neon WLs that jump midway: 6, 11, and 14
+
+% when I use Sadia's default values of halfWin = 8, searchWin = 15, then
+% only 11 exhibits such a hiccup -- but in fact 6 and 14 get incorrectly "snapped" to 5
+% and 13 respectively.
+
 
 
 
@@ -781,11 +847,11 @@ global_dy = interp1(global_fiber_rows, dy_fiber, allRows, 'linear', 'extrap');
 %   The repmat part is straightforward: change Nx to 2*Nx - 1
 %   Making a denser meshgrid is also not that hard.
 
-% Step = 1;   % original
-Step = 0.5; % twice as dense in X
+Step = 1;   % original
+% Step = 0.5; % twice as dense in X
 [BigXgrid, BigYgrid] = meshgrid(1:Step:Nx, 1:Ny);
-X_corrected_global = BigXgrid - repmat(global_dx, 1, 2*Nx-1);
-Y_corrected_global = BigYgrid - repmat(global_dy, 1, 2*Nx-1);
+X_corrected_global = BigXgrid - repmat(global_dx, 1, Nx);
+Y_corrected_global = BigYgrid - repmat(global_dy, 1, Nx);
 
 % Use interp2 to re-sample the entire neon image at the corrected coordinates.
 % 'spline' interpolation for smoothness.
@@ -883,7 +949,7 @@ figure('Name', 'Raw vs. Globally Corrected Data Image');
 [ChosenFile,dataDir] = uigetfile('C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12');
 myFile = fullfile(dataDir, ChosenFile);
 load(myFile, 'RawData'); 
-myData = RawData.Spectrum; 
+myData = RawData.Spectrum;  
 myImage = myData(1:Range,:);
 
 McorrectedImage = interp2(1:Nx, 1:Ny, double(myImage), ...
