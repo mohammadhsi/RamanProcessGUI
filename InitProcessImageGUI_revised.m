@@ -278,7 +278,8 @@ close all
 % dataDir = uigetdir('C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12');
 
 % hardwired when needed:
-dataDir =  'C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12';
+% dataDir =  'C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12';
+dataDir =  'C:\Users\Sadia\Box\BergerLabBoneProject\Data\Cadaver\2025_06_12';
 
 whiteLampFile = fullfile(dataDir, 'whitelamp.mat');
 neonFile = fullfile(dataDir, 'neon.mat');
@@ -715,247 +716,293 @@ for k = 1:length(pixelPositions)
 end
 
 
-%% ========================================================================
-% STEP 6: GLOBAL 2D CORRECTION
-%
-% In the previous steps, we computed refined (actualX, actualY) control points
-% for each neon line (for each fiber) and obtained dx and dy shifts (where:
-%   dx = idealX - actualX
-%   dy = idealY - actualY).
-%
-% Instead of applying interp2 piecewise (i.e., only on narrow bands around the 
-% neon columns), we now combine the information from all neon columns to get 
-% a global shift for each fiber. We then interpolate these shifts to every row 
-% of the image and apply a global 2D warp using interp2.
-% ========================================================================
-
-% --- Combine control point shifts across all neon columns ---
-numFibers = length(detectedFiberPositions);  % number of fiber rows (ideal Y's)
-numColumns = length(pixelPositions);           % number of neon lines
-
-% Preallocate matrices to store X and Y values for each fiber and each neon column.
-All_actualCP_X = zeros(numFibers, numColumns);
-All_actualCP_X = zeros(numFibers, numColumns);
-All_idealCP_X = zeros(numFibers, numColumns);
-All_idealCP_Y = zeros(numFibers, numColumns);
-
-% Loop over each neon column and extract the shifts for each fiber.
-% ajb : i.e. each x and y shift for this particular neon wavelength's image
-for k = 1:numColumns
-    % Retrieve the refined control points from Step 5.
-    % idealCP contains the ideal control points: [idealX, idealY],
-    % where idealX is the expected column (from the wavelength lookup)
-    % and idealY is the fiber row from white lamp detection.
-    idealCP = allIdealControlPoints{k};   % Size: [numFibers x 2]
-    
-    % actualCP contains the refined (data-driven) control points:
-    % [refined_actualX, refined_actualY]
-    actualCP = allActualControlPoints{k};   % Size: [numFibers x 2]
-    
-    % ajb : create matrices of the actual and ideal control points (rather
-    % than just the dx_all and dy_all differences
-    All_actualCP_X(:,k) = actualCP(:,1);
-    All_actualCP_Y(:,k) = actualCP(:,2);
-    All_idealCP_X(:,k) = idealCP(:,1);
-    All_idealCP_Y(:,k) = idealCP(:,2);
-    % ajb : Compute the per-fiber horizontal and vertical shifts for this neon column.
-    % dx_all(:,k) = All_idealCP_X(:,k) - All_actualCP_X(:,k); % dx: shift in X
-    % dy_all(:,k) = All_idealCP_Y(:,k) - All_actualCP_Y(:,k); % dy: shift in Y
-    % % previous version of dx_all and dy_all
-    % dx_all(:,k) = idealCP(:,1) - actualCP(:,1); % dx: shift in X
-    % dy_all(:,k) = idealCP(:,2) - actualCP(:,2); % dy: shift in Y
-
-end
-
-% create dx_all and dy_all from ideal and actual CP X and Y matrices
-dx_all = All_idealCP_X - All_actualCP_X;
-dy_all = All_idealCP_Y - All_actualCP_Y;
-
-% Compare the ACTUAL first and last neon columns's X shift values. If the
-% difference varies as a function of column, that means that we should not
-% be averaging over fibers. 
-% figure(101)
-% cla    
-% plot(All_actualCP_X(:,1), All_actualCP_Y, "bo")
-% hold on
-% plot(All_actualCP_X(:,end), All_actualCP_Y, "ro")
-% % render the x difference
-% offset = -400;
-% plot(offset + All_actualCP_X(:,end) - All_actualCP_X(:,1), All_actualCP_Y(:,1), 'ks')
-% axis ij
-% xlim([-100 1100])
-
-% calculate the mean and stdev of the pixel differences
-% Differences = All_actualCP_X(:,end) - All_actualCP_X(:,1);
-% myMean = mean(Differences);
-% myStdev = std(Differences);
-% myMax = max(Differences);
-% myMin = min(Differences);
-
-% ajb 2025.06.27 : figure out why/if there should be an averaged shift.
-% It does not make sense to me to average.
-% Different neon wavelengths have (slightly) different spatial patterns due
-% to aberrations -- this is what we want to correct.
-% Averaging would wash these out and cause all columns to have the same
-% horizontal shifts. 
-
-% ajb 2025.06.28 : 
-% === plot the actualCP values and create a 2D matrix
-
-
-
-% figure(100)
-% cla
-% hold off
+% %% ========================================================================
+% % STEP 6: GLOBAL 2D CORRECTION
+% %
+% % In the previous steps, we computed refined (actualX, actualY) control points
+% % for each neon line (for each fiber) and obtained dx and dy shifts (where:
+% %   dx = idealX - actualX
+% %   dy = idealY - actualY).
+% %
+% % Instead of applying interp2 piecewise (i.e., only on narrow bands around the 
+% % neon columns), we now combine the information from all neon columns to get 
+% % a global shift for each fiber. We then interpolate these shifts to every row 
+% % of the image and apply a global 2D warp using interp2.
+% % ========================================================================
+% 
+% % --- Combine control point shifts across all neon columns ---
+% numFibers = length(detectedFiberPositions);  % number of fiber rows (ideal Y's)
+% numColumns = length(pixelPositions);           % number of neon lines
+% 
+% % Preallocate matrices to store X and Y values for each fiber and each neon column.
+% All_actualCP_X = zeros(numFibers, numColumns);
+% All_actualCP_X = zeros(numFibers, numColumns);
+% All_idealCP_X = zeros(numFibers, numColumns);
+% All_idealCP_Y = zeros(numFibers, numColumns);
+% 
+% % Loop over each neon column and extract the shifts for each fiber.
+% % ajb : i.e. each x and y shift for this particular neon wavelength's image
 % for k = 1:numColumns
-%   actualCPAll(:,k) = allActualControlPoints{k};
-%   plot(actualCP(:,1),actualCP(:,2),'ro','MarkerSize',2);
-%   hold on
+%     % Retrieve the refined control points from Step 5.
+%     % idealCP contains the ideal control points: [idealX, idealY],
+%     % where idealX is the expected column (from the wavelength lookup)
+%     % and idealY is the fiber row from white lamp detection.
+%     idealCP = allIdealControlPoints{k};   % Size: [numFibers x 2]
+% 
+%     % actualCP contains the refined (data-driven) control points:
+%     % [refined_actualX, refined_actualY]
+%     actualCP = allActualControlPoints{k};   % Size: [numFibers x 2]
+% 
+%     % ajb : create matrices of the actual and ideal control points (rather
+%     % than just the dx_all and dy_all differences
+%     All_actualCP_X(:,k) = actualCP(:,1);
+%     All_actualCP_Y(:,k) = actualCP(:,2);
+%     All_idealCP_X(:,k) = idealCP(:,1);
+%     All_idealCP_Y(:,k) = idealCP(:,2);
+%     % ajb : Compute the per-fiber horizontal and vertical shifts for this neon column.
+%     % dx_all(:,k) = All_idealCP_X(:,k) - All_actualCP_X(:,k); % dx: shift in X
+%     % dy_all(:,k) = All_idealCP_Y(:,k) - All_actualCP_Y(:,k); % dy: shift in Y
+%     % % previous version of dx_all and dy_all
+%     % dx_all(:,k) = idealCP(:,1) - actualCP(:,1); % dx: shift in X
+%     % dy_all(:,k) = idealCP(:,2) - actualCP(:,2); % dy: shift in Y
+% 
 % end
-% axis ij
-% xlim([0 800])
-
-% The X window region creates shifts that depend upon the window width.
-% When I use Space = 4 (\pm four pixels around AbsolutePixel position) for
-% both the full and 
-% there are several neon WLs that jump midway: 6, 11, and 14
-
-% when I use Sadia's default values of halfWin = 8, searchWin = 15, then
-% only 11 exhibits such a hiccup -- but in fact 6 and 14 get incorrectly "snapped" to 5
-% and 13 respectively.
-
-%% Create values for all locations in the raw image
-% ajb 2025.06.30 
-
-if 1
-
-% preallocate full 2D matrices for DeltaX and DeltaY displacements 
-FullDeltaX = zeros(size(neonImage));
-FullDeltaY = zeros(size(neonImage));
-
-% Step 1: for each *control* column, interpolate in 1D *vertically* to get
-% shift values for each row (i.e. full 256 pixels for each such column).
-
-ColumnHeight = size(neonImage,1);
-n = size(dx_all,2);  % number of neon control wavelengths
-% preallocate data 
-ControlColumnsFullX = zeros(ColumnHeight,n);
-% loop over control columns
-for i = 1:n
-    % supply index of the control column
-    Column = AbsolutePixel(i);
-    % supply row indices for control points in this column (1 for each neon
-    % center)
-    YRows = actualCP(:,2);  
-    % assign FullDelta X and Y values at these row indices
-    for j = 1:size(All_actualCP_X,1)        % all control rows
-        myRow = YRows(j);
-        FullDeltaX(myRow,Column) = dx_all(j,i);
-        FullDeltaY(myRow,Column) = dy_all(j,i);
-    end
-
-    % YRows = control pixels in this column
-    % Xshift = x values of shift at these control pixels
-    % AllRows = 1:ColumnHeight
-    %   these are the inputs to interpolate across the control pixels for
-    %   each "neon column"
-    AllRows = 1:ColumnHeight;
-    FullDeltaX(:,Column) = interp1(YRows,FullDeltaX(YRows,Column),AllRows,"spline");
-    FullDeltaY(:,Column) = interp1(YRows,FullDeltaY(YRows,Column),AllRows,"spline");
-    
-
- %   ControlColumnsFullX(:,i) = interp1(All_actualCP_X(:,i), dx_all(:,i), 1:ColumnHeight,"spline");
- %   ControlColumnsFullY(:,i) = interp1(All_actualCP_Y(:,i), dy_all(:,i), 1:ColumnHeight,"spline");  
-end
-
-% Step 2: for *all* rows, interpolate in 1D *horizontally* to get shift values
-% for all columns. 
-AllColumns = size(neonImage,2);
-AllRows = ColumnHeight;
-for i = 1:AllRows % interpolate horizontally for each row
-    % AbsolutePixel = control pixels in this row
-    % X shift = dx values
-    % AllColumns = 1:RowWidth
-    %   these are the inputs to interpolate across the control pixels in
-    %   this row
-    
-    FullDeltaX(i,:) = interp1(AbsolutePixel,FullDeltaX(i,AbsolutePixel),[1:AllColumns],'linear','extrap');
-    FullDeltaY(i,:) = interp1(AbsolutePixel,FullDeltaY(i,AbsolutePixel),[1:AllColumns],'linear','extrap');
-    
-    % supply control column index and values for X and Y 
-    % ControlColumnsFullX = interp1(All_actualCP_X(:,i), dx_all(:,i), 1:ColumnHeight,"spline");
-    % ControlColumnsFullY = interp1(All_actualCP_Y(:,i), dy_all(:,i), 1:ColumnHeight,"spline");  
-end
-
-[Xgrid, Ygrid] = meshgrid(1:Nx, 1:Ny);  % Create coordinate grids for the full image.
-
-X_corrected_global = Xgrid - FullDeltaX;
-Y_corrected_global = Ygrid - FullDeltaY;
-
-end % if using 2-step interpolation method
-
-
-% ajb : Sadia's method where all columns get the same value
-
-if 0    % commenting out
-
-% Average the shifts across all neon columns for each fiber.  
-    % === ajb : Y values are all zero, but dx values are not 
-    % ajb : what is the value of an averaged shift?
-   
-% This yields one dx and one dy per fiber row.
-dx_fiber = mean(dx_all, 2);  % [numFibers x 1] vector for horizontal shifts.
-dy_fiber = mean(dy_all, 2);  % [numFibers x 1] vector for vertical shifts.
-
-% The ideal fiber rows (Y positions) are given by detectedFiberPositions.
-global_fiber_rows = detectedFiberPositions;
-% ajb note: the neon image I've been using (2025.06.12) has very horizontal
-% stripes - there seems to be no variation in Y for each stripe. But this
-% doesn't have to be the case in general; the algorithm should still work
-% even if the center row of the fiber "droops" as the column number
-% increases or decreases.
-
-% Interpolate these per-fiber shifts to every row in the image.
-allRows = (1:Ny)';  % All row indices in the image.
-% ajb : this next line is what does the horizontal interpolation part 
-global_dx = interp1(global_fiber_rows, dx_fiber, allRows, 'linear', 'extrap');
-% global dy does nothing
-global_dy = interp1(global_fiber_rows, dy_fiber, allRows, 'linear', 'extrap');
-
-[Xgrid, Ygrid] = meshgrid(1:Nx, 1:Ny);
-
-% old way:
-X_corrected_global = Xgrid - repmat(global_dx, 1, Nx);
-Y_corrected_global = Ygrid - repmat(global_dy, 1, Nx);
-
-end % Sadia method (seems to perform better, empirically!)
-
-
-% either way, apply the X and Y corrections
-
-% Use interp2 to re-sample the entire neon image at the corrected coordinates.
-% 'spline' interpolation for smoothness.
-correctedImage = interp2(1:Nx, 1:Ny, double(neonImage), ...
-                         X_corrected_global, Y_corrected_global, 'spline', 0);
-
-
-% For each row, subtract the corresponding shift (applied uniformly across the row):
-%   X_corrected = X_original - global_dx(row)
-%   Y_corrected = Y_original - global_dy(row)
-
-% ajb : sampling at finer X spacing requires a denser X grid
-%   - question is, how to make it denser the right way?
-%   The repmat part is straightforward: change Nx to 2*Nx - 1
-%   Making a denser meshgrid is also not that hard.
-
-% Step = 1;   % original
+% 
+% % create dx_all and dy_all from ideal and actual CP X and Y matrices
+% dx_all = All_idealCP_X - All_actualCP_X;
+% dy_all = All_idealCP_Y - All_actualCP_Y;
+% 
+% % Compare the ACTUAL first and last neon columns's X shift values. If the
+% % difference varies as a function of column, that means that we should not
+% % be averaging over fibers. 
+% % figure(101)
+% % cla    
+% % plot(All_actualCP_X(:,1), All_actualCP_Y, "bo")
+% % hold on
+% % plot(All_actualCP_X(:,end), All_actualCP_Y, "ro")
+% % % render the x difference
+% % offset = -400;
+% % plot(offset + All_actualCP_X(:,end) - All_actualCP_X(:,1), All_actualCP_Y(:,1), 'ks')
+% % axis ij
+% % xlim([-100 1100])
+% 
+% % calculate the mean and stdev of the pixel differences
+% % Differences = All_actualCP_X(:,end) - All_actualCP_X(:,1);
+% % myMean = mean(Differences);
+% % myStdev = std(Differences);
+% % myMax = max(Differences);
+% % myMin = min(Differences);
+% 
+% % ajb 2025.06.27 : figure out why/if there should be an averaged shift.
+% % It does not make sense to me to average.
+% % Different neon wavelengths have (slightly) different spatial patterns due
+% % to aberrations -- this is what we want to correct.
+% % Averaging would wash these out and cause all columns to have the same
+% % horizontal shifts. 
+% 
+% % ajb 2025.06.28 : 
+% % === plot the actualCP values and create a 2D matrix
+% 
+% 
+% 
+% % figure(100)
+% % cla
+% % hold off
+% % for k = 1:numColumns
+% %   actualCPAll(:,k) = allActualControlPoints{k};
+% %   plot(actualCP(:,1),actualCP(:,2),'ro','MarkerSize',2);
+% %   hold on
+% % end
+% % axis ij
+% % xlim([0 800])
+% 
+% % The X window region creates shifts that depend upon the window width.
+% % When I use Space = 4 (\pm four pixels around AbsolutePixel position) for
+% % both the full and 
+% % there are several neon WLs that jump midway: 6, 11, and 14
+% 
+% % when I use Sadia's default values of halfWin = 8, searchWin = 15, then
+% % only 11 exhibits such a hiccup -- but in fact 6 and 14 get incorrectly "snapped" to 5
+% % and 13 respectively.
+% 
+% %% Create values for all locations in the raw image
+% % ajb 2025.06.30 
+% 
+% if 1
+% 
+% % preallocate full 2D matrices for DeltaX and DeltaY displacements 
+% FullDeltaX = zeros(size(neonImage));
+% FullDeltaY = zeros(size(neonImage));
+% 
+% % Step 1: for each *control* column, interpolate in 1D *vertically* to get
+% % shift values for each row (i.e. full 256 pixels for each such column).
+% 
+% ColumnHeight = size(neonImage,1);
+% n = size(dx_all,2);  % number of neon control wavelengths
+% % preallocate data 
+% ControlColumnsFullX = zeros(ColumnHeight,n);
+% % loop over control columns
+% for i = 1:n
+%     % supply index of the control column
+%     Column = AbsolutePixel(i);
+%     % supply row indices for control points in this column (1 for each neon
+%     % center)
+%     YRows = actualCP(:,2);  
+%     % assign FullDelta X and Y values at these row indices
+%     for j = 1:size(All_actualCP_X,1)        % all control rows
+%         myRow = YRows(j);
+%         FullDeltaX(myRow,Column) = dx_all(j,i);
+%         FullDeltaY(myRow,Column) = dy_all(j,i);
+%     end
+% 
+%     % YRows = control pixels in this column
+%     % Xshift = x values of shift at these control pixels
+%     % AllRows = 1:ColumnHeight
+%     %   these are the inputs to interpolate across the control pixels for
+%     %   each "neon column"
+%     AllRows = 1:ColumnHeight;
+%     FullDeltaX(:,Column) = interp1(YRows,FullDeltaX(YRows,Column),AllRows,"spline");
+%     FullDeltaY(:,Column) = interp1(YRows,FullDeltaY(YRows,Column),AllRows,"spline");
+% 
+% 
+%  %   ControlColumnsFullX(:,i) = interp1(All_actualCP_X(:,i), dx_all(:,i), 1:ColumnHeight,"spline");
+%  %   ControlColumnsFullY(:,i) = interp1(All_actualCP_Y(:,i), dy_all(:,i), 1:ColumnHeight,"spline");  
+% end
+% 
+% % Step 2: for *all* rows, interpolate in 1D *horizontally* to get shift values
+% % for all columns. 
+% AllColumns = size(neonImage,2);
+% AllRows = ColumnHeight;
+% for i = 1:AllRows % interpolate horizontally for each row
+%     % AbsolutePixel = control pixels in this row
+%     % X shift = dx values
+%     % AllColumns = 1:RowWidth
+%     %   these are the inputs to interpolate across the control pixels in
+%     %   this row
+% 
+%     FullDeltaX(i,:) = interp1(AbsolutePixel,FullDeltaX(i,AbsolutePixel),[1:AllColumns],'linear','extrap');
+%     FullDeltaY(i,:) = interp1(AbsolutePixel,FullDeltaY(i,AbsolutePixel),[1:AllColumns],'linear','extrap');
+% 
+%     % supply control column index and values for X and Y 
+%     % ControlColumnsFullX = interp1(All_actualCP_X(:,i), dx_all(:,i), 1:ColumnHeight,"spline");
+%     % ControlColumnsFullY = interp1(All_actualCP_Y(:,i), dy_all(:,i), 1:ColumnHeight,"spline");  
+% end
+% 
+% [Xgrid, Ygrid] = meshgrid(1:Nx, 1:Ny);  % Create coordinate grids for the full image.
+% 
+% X_corrected_global = Xgrid - FullDeltaX;
+% Y_corrected_global = Ygrid - FullDeltaY;
+% 
+% end % if using 2-step interpolation method
+% 
+% 
+% % ajb : Sadia's method where all columns get the same value
+% 
+% if 0    % commenting out
+% 
+% % Average the shifts across all neon columns for each fiber.  
+%     % === ajb : Y values are all zero, but dx values are not 
+%     % ajb : what is the value of an averaged shift?
+% 
+% % This yields one dx and one dy per fiber row.
+% dx_fiber = mean(dx_all, 2);  % [numFibers x 1] vector for horizontal shifts.
+% dy_fiber = mean(dy_all, 2);  % [numFibers x 1] vector for vertical shifts.
+% 
+% % The ideal fiber rows (Y positions) are given by detectedFiberPositions.
+% global_fiber_rows = detectedFiberPositions;
+% % ajb note: the neon image I've been using (2025.06.12) has very horizontal
+% % stripes - there seems to be no variation in Y for each stripe. But this
+% % doesn't have to be the case in general; the algorithm should still work
+% % even if the center row of the fiber "droops" as the column number
+% % increases or decreases.
+% 
+% % Interpolate these per-fiber shifts to every row in the image.
+% allRows = (1:Ny)';  % All row indices in the image.
+% % ajb : this next line is what does the horizontal interpolation part 
+% global_dx = interp1(global_fiber_rows, dx_fiber, allRows, 'linear', 'extrap');
+% % global dy does nothing
+% global_dy = interp1(global_fiber_rows, dy_fiber, allRows, 'linear', 'extrap');
+% 
 % [Xgrid, Ygrid] = meshgrid(1:Nx, 1:Ny);
 % 
 % % old way:
 % X_corrected_global = Xgrid - repmat(global_dx, 1, Nx);
 % Y_corrected_global = Ygrid - repmat(global_dy, 1, Nx);
 % 
+% end % Sadia method (seems to perform better, empirically!)
+% 
+% 
+% % either way, apply the X and Y corrections
+% 
+% % Use interp2 to re-sample the entire neon image at the corrected coordinates.
+% % 'spline' interpolation for smoothness.
+% correctedImage = interp2(1:Nx, 1:Ny, double(neonImage), ...
+%                          X_corrected_global, Y_corrected_global, 'spline', 0);
+% 
+% 
+% % For each row, subtract the corresponding shift (applied uniformly across the row):
+% %   X_corrected = X_original - global_dx(row)
+% %   Y_corrected = Y_original - global_dy(row)
+% 
+% % ajb : sampling at finer X spacing requires a denser X grid
+% %   - question is, how to make it denser the right way?
+% %   The repmat part is straightforward: change Nx to 2*Nx - 1
+% %   Making a denser meshgrid is also not that hard.
+% 
+% % Step = 1;   % original
+% % [Xgrid, Ygrid] = meshgrid(1:Nx, 1:Ny);
+% % 
+% % % old way:
+% % X_corrected_global = Xgrid - repmat(global_dx, 1, Nx);
+% % Y_corrected_global = Ygrid - repmat(global_dy, 1, Nx);
+% % 
 
+
+%% ========================================================================
+% STEP 6: GLOBAL 2D CORRECTION (2nd‐Order Polynomial Warp) : seems to be
+% working (SA)
+%
+% Instead of averaging per-column dx/dy and doing interp2 piecewise,
+% we now fit a single global 2nd‐order polynomial transform from all
+% actual→ideal control points, and then warp the entire image at once
+% using imwarp with cubic interpolation.
+% ========================================================================
+
+% --- Gather all (actualX,actualY) → (idealX,idealY) control points ---
+numFibers  = length(detectedFiberPositions);
+numColumns = length(pixelPositions);
+totalPts   = numFibers * numColumns;
+movingPts  = zeros(totalPts, 2);   % [actualX, actualY]
+fixedPts   = zeros(totalPts, 2);   % [idealX,  idealY]
+idx = 1;
+for k = 1:numColumns
+    actualCP = allActualControlPoints{k};  % [numFibers×2]
+    idealCP  = allIdealControlPoints{k};   % [numFibers×2]
+    n = size(actualCP, 1);
+    movingPts(idx:idx+n-1, :) = actualCP;
+    fixedPts(idx:idx+n-1, :)  = idealCP;
+    idx = idx + n;
+end
+
+% --- Fit a 2nd‐order polynomial geometric transform ---
+tform = fitgeotrans(movingPts, fixedPts, 'polynomial', 2);
+
+% --- Define output coordinate system to match original image size ---
+Rout = imref2d(size(neonImage));  % uses [Ny,Nx] from earlier
+
+
+
+% --- Warp the entire neon image in one go with cubic interpolation ---
+correctedImage = imwarp(neonImage, tform, 'cubic', ...
+                       'OutputView', Rout);
+
+% full coordinate grid
+[Xgrid, Ygrid] = meshgrid(1:size(neonImage,2), 1:size(neonImage,1));
+
+% find the *inverse* mapping at every output pixel
+[Xi, Yi] = transformPointsInverse(tform, Xgrid(:), Ygrid(:));
+X_corrected_global = reshape(Xi, size(Xgrid));
+Y_corrected_global = reshape(Yi, size(Ygrid));
 
 %% ========================================================================
 % FINAL VISUALIZATION: RAW VS. GLOBALLY CORRECTED NEON IMAGE
