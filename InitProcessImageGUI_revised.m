@@ -229,7 +229,7 @@ close all
 % Check whether Sadia's code can all be put in one place.
 % - Two goals: 
 %   (1) Do the spatial aberration correction to get all calibrated neon "lines" to line up horizontally.
-%   (2) Use a more stable method of calibrating wavelength and wavenumber .
+%   (2) Use a more stable method of calibrating wavelength and wavenumber.
 
 % Prior calibration method depended upon determining the "largest" N peaks of neon/tylenol. At the
 % bottom of the list, this was unstable--the list would change. This required effort to maintain
@@ -241,7 +241,9 @@ close all
 
 %% Order of operations
 
-% ACTUAL (RAW) data space
+% ACTUAL (RAW) data space - i.e. effects associated with the sensor array itself, before we start creating the ideal space.
+
+% 0. Cosmic ray correction - do it first. Leave the five frames separate, but replace any pixel that is judged to be a cosmic ray outlier.
 
 % 1. Fixed pattern correction (thermal lamp) - does not change the size of the file (does not need
 % to be done first)
@@ -262,8 +264,7 @@ close all
 % offsets. [This is already done in the previous code.]
 
 % 4. Apply throughput correction using green glass (same for all legs). [This is already done in the
-% previous code. Same for all other post-processing steps such as cosmic ray removal, smoothing, and
-% number of iterations for the Anita algorithm.]
+% previous code. Same for all other post-processing steps such as smoothing and the number of iterations for the Anita algorithm.]
 
 %% Implement the aberrration code here
 
