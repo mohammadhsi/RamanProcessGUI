@@ -210,6 +210,164 @@ function initialprocess_Callback(hObject, eventdata, handles)
 
 close all
 
+%% pre-aberration correction
+
+%% Options
+
+% ajb 2025.07.15 : most of this section is now irrelevant because of the 
+% aberration correction. Will delete actions; keeping values listed for now
+% if they don't affect anything
+
+% Darkspec Filtering
+window = -6:6; winsig = 10;
+
+% CCD Image Size
+px = 1024; py = 256;%Keren change it to 255 for microscope system
+
+% Aberration Correction
+polyorderaberration = 2;
+xpixeldrift = 6;
+ypixeldrift = 2;
+
+% Throughput Properties
+% 2024.02.06 ajb: for current system w/ 3 separate fiber bundles, it is
+% probably not necessary to identify each fiber separately anymore.
+fibernum = 40; % Number of fibers to use in fit
+thpeakstripwindow = 3;
+thedgedist = 4;
+
+% Neon Properties
+
+
+%Using February 26 calibration data on May 29 data, updated on July 19
+% npeaklambda = [849.54        859.13           NaN        865.44           NaN        870.41        878.06        885.39        891.95        898.86        914.87        920.18           NaN        930.09        932.65           NaN        942.54           NaN           NaN        953.42        966.54]';
+% 
+% 
+% 
+% % number of peaks calculated directly from the values above
+% npeaknum = length(npeaklambda);
+% 
+% polyorderneon = 3;
+% 
+% npeakstripwindow = 4;
+
+% Tylenol Properties
+
+typeakwavenum = [329.2 390.9 465.1 NaN NaN 651.6 710.8 797.2 NaN 857.9 NaN 1168.5 1236.8 NaN 1278.5 1329.9 1371.5 1561.6 NaN 1648.4 NaN].'; 
+% created January 26, using ImprovedRelativePeakLocations
+
+typeaknum = length(typeakwavenum);
+typeakstripwindow = 15;
+tyedgedist = 21;
+
+%% Get Files to Process
+
+% 'initprocessstatus' is for the old version's user interface; it isn't needed now
+set(handles.initprocessstatus,'string','Status: Initializing...'); pause(1E-6)
+
+
+filedir = get(handles.FileDirectory,'string');
+s = what(filedir); allfiles = s.mat;
+specind = logical(1 - ((1-cellfun('isempty', regexp(allfiles,'throughput'))) + ...
+    (1-cellfun('isempty', regexp(allfiles,'neon'))) + ...
+    (1-cellfun('isempty', regexp(allfiles,'tylenol'))) + ...
+    (1-cellfun('isempty', regexp(allfiles,'whitelamp'))) + ...
+    (1-cellfun('isempty', regexp(allfiles,'darkspec')))));
+list = allfiles(specind);
+
+%% Load Dark Spectrum
+set(handles.initprocessstatus,'string','Status: Calculating Dark Spectrum...'); pause(1E-6)
+
+% the file darkspec_calib.mat (which for a long time has simply been a copy
+% of darkspec.mat), when initially loaded, is the raw measurement acquired,
+% which is a 2D matrix (all frames are stored as a single image, which in
+% the case of 5 frames gives dimension of 1280x1024).
+darkspec = load([filedir '/darkspec_cali.mat']);
+% This next line turns the data into a 3D matrix, giving each of the 
+% frames its own, smaller matrix - for a 5-frame acquisition, the output
+% matrix is now 5x256x1024.
+darkspec = squeeze(double(permute(reshape(darkspec.RawData.Spectrum.',px,py, ...
+    str2double(darkspec.RawData.NumofKin)),[3 2 1])./...
+    str2double(darkspec.RawData.NumofAcu)));
+% "mad" is "mean absolute deviation", acting along the first dimension,
+% which is the number of frames -- this produces essentially a 2D matrix,
+% but the first (frame) dimension still exists even though the index only
+% goes to 1.
+% Using "squeeze" eliminates this dimension, producing a truly 2D matrix.
+darkspecmad = squeeze(mad(darkspec,1));
+darkspecmed = squeeze(median(darkspec,1));
+
+% 2024.07.28, AJB: 
+% It looks like this is rejecting values that exceed a certain distance from
+% the median (darkspecmed), setting them to nan.
+darkspec(darkspec > permute(repmat(darkspecmed+5.*darkspecmad,[1 1 size(darkspec,1)]),[3 1 2])) = nan;
+darkspec(darkspec < permute(repmat(darkspecmed-5.*darkspecmad,[1 1 size(darkspec,1)]),[3 1 2])) = nan;
+% "nanmean" simply takes a mean that ignores NaN values.
+darkspec = squeeze(nanmean(darkspec));
+% It is this line above that creates an averaged single frame from the
+% original multiframe darkspec.
+
+% Remove bad pixels%%%Keren: we do not have bad pixels on new CCD
+% 07/14/2020
+% darkspec(82:256,185) = mean(darkspec(82:256,[184 186]),2);
+% darkspec(115:256,308) = mean(darkspec(115:256,[307 309]),2);
+% darkspec(113,501) = mean(darkspec(113,[500 502]),2);
+
+% Filter Dark Spectrum
+% (the window and winsig values are at the start of the 'options' section
+% above)
+
+% AJB note 2024.07.28: the gausskernel is only in the horizontal direction,
+% I believe. That's why the darkspec2 spectrum smears only in the
+% horizontal.
+gausskernel = exp(-(window.^2)./(2.*winsig.^2));
+gausskernel = gausskernel./sum(gausskernel(:));
+% smooth out the 2D data in the single-frame image
+darkspec2 = conv2(darkspec,gausskernel,'same');
+mxwindow = max(window);
+% These next two lines replace the outer boundaries of the convolved
+% image (darspec2) with the original values. I'm not surprised that the
+% edge regions of the convolution might be affected in a way we don't want,
+% e.g. averaging in zeros.
+darkspec2(1:mxwindow,:) = darkspec(1:mxwindow,:); darkspec2((py-mxwindow+1):py,:) = darkspec((py-mxwindow+1):py,:);
+darkspec2(:,1:mxwindow) = darkspec(:,1:mxwindow); darkspec2(:,(px-mxwindow+1):px) = darkspec(:,(px-mxwindow+1):px);
+
+% After all of this processing, what we have is a smoothed version of a
+% single frame. Extreme pixel values have been rejected, using mad and median
+% functions to define extremes ad hoc.
+% Data were then averaged over all frames. 
+% That average frame was conv2-ed by a Gaussian kernel. And
+% finally the edge values were restored to non-convolved data to avoid
+% convolution effects in that zone.
+
+% AJB 2024.07.28:
+% I do not see anywhere that the smoothed darkspec2 has been used to create
+% a new darkspec value. 
+
+% I've left this here in case we want to change the kernel and want to plot
+% the before and after
+
+    % figure; 
+    % subplot(211)
+    % imagesc(darkspec); colormap gray; crange = [900, 1050]; clim(crange);
+    % axis equal; axis tight; colorbar; 
+    % title('darkspec')
+    % subplot(212)
+    % % darkspec = darkspec2; clear darkspec2; %CM comment 12/11/2021
+    % imagesc(darkspec2); colormap gray; clim(crange);
+    % axis equal; axis tight; colorbar; 
+    % title('darkspec2')
+
+% Without setting darkspec = darkspec2 (which we haven't been doing), 
+% I think the darkspec image being used below
+% is just a lightly-corrected (for extreme values) average frame, without
+% any smoothing.
+
+
+% But I want to move to a time-flexible model, so all of the
+% above is really the OLD idea for correcting the dark counts. 
+
+
 %% Aberration correction, June 2025 - AJB
 
 % Sadia Afrin (SA) developed code to correct aberrations in raw 2D images. This followed past work
@@ -1093,174 +1251,7 @@ colorbar;
 
 pause
 
-%% Options
 
-% Darkspec Filtering
-window = -6:6; winsig = 10;
-
-% CCD Image Size
-px = 1024; py = 256;%Keren change it to 255 for microscope system
-
-% Aberration Correction
-polyorderaberration = 2;
-xpixeldrift = 6;
-ypixeldrift = 2;
-
-% Throughput Properties
-% 2024.02.06 ajb: for current system w/ 3 separate fiber bundles, it is
-% probably not necessary to identify each fiber separately anymore.
-fibernum = 40; % Number of fibers to use in fit
-thpeakstripwindow = 3;
-thedgedist = 4;
-
-% Neon Properties
-
-%npeaklambda = [849.54 859.13 NaN 865.44 NaN 878.06 885.39 886.55 891.95 914.87 920.18 NaN 930.09 NaN 932.65 NaN 942.54 NaN NaN 953.42 954.74 966.54].';
-%npeaklambda = [849.54 859.13 NaN 865.44 NaN 870.41 878.06 885.39 891.95	898.86 914.87 920.18 NaN NaN 930.09 932.65 NaN 942.54 NaN NaN 953.42 966.54].';
-
-% npeaklambda = [849.54        859.13           NaN        865.44           NaN        878.06        885.39	886.55        891.95        914.87        920.18           NaN      930.09    NaN        932.65           NaN        942.54           NaN           NaN        953.42	954.74        966.54].';
-% Created on January 26, 2024, using ImprovedRelativePeakLocations
-
-
-% % Created on 2024.02.17
-%npeaklambda = [849.54 859.13 NaN 865.44 NaN 870.41 878.06 885.39 891.95 898.86 914.87 920.18 NaN 930.09 932.65 NaN 942.54 NaN NaN 953.42 966.54]';
-
-% April 3 2024
-%npeaklambda = [849.54        859.13           NaN        865.44           NaN        870.41        878.06        885.39        891.95        914.87        920.18           NaN        930.09        932.65           NaN        942.54           NaN           NaN        953.42    954.74        966.54]';
-
-%July 15, 2024
-%npeaklambda = [849.54        859.13           NaN        865.44           NaN        878.06        885.39        886.55        891.95        914.87        920.18        NaN        930.09        NaN        932.65        NaN        942.54        NaN        953.42        954.74        966.54]';
-
-%Using February 26 calibration data on May 29 data, updated on July 19
-npeaklambda = [849.54        859.13           NaN        865.44           NaN        870.41        878.06        885.39        891.95        898.86        914.87        920.18           NaN        930.09        932.65           NaN        942.54           NaN           NaN        953.42        966.54]';
-
-
-
-% number of peaks calculated directly from the values above
-npeaknum = length(npeaklambda);
-
-polyorderneon = 3;
-
-npeakstripwindow = 4;
-
-% Tylenol Properties
-
-
-%typeakwavenum = [NaN 329.2 390.9 465.1 NaN NaN 651.6 710.8 797.2 NaN 857.9 NaN 1168.5 1236.8 NaN 1278.5 1329.9 1371.5 1561.6 NaN 1648.4].';
-%typeakwavenum = [329.2 NaN NaN NaN NaN 390.9 NaN 465.1 651.6 797.2 857.9 1168.5 1236.8 NaN 1278.5 1329.9 1371.5 1561.6 NaN 1648.4 NaN].';
-%typeakwavenum = [329.2 390.9 465.1 651.6 710.8 797.2 857.9 NaN NaN NaN 1168.5 1236.8 NaN 1278.5 1329.9 1371.5 NaN 1561.6 NaN 1648.4 NaN].';
-
-%typeakwavenum = [329.2 390.9 465.1 504 NaN 651.6 710.8 797.2 NaN 857.9 NaN 1168.5 1236.8 NaN 1278.5 1329.9 1371.5 1561.6 NaN 1648.4 NaN].'; %--Latest January 16
-
-typeakwavenum = [329.2 390.9 465.1 NaN NaN 651.6 710.8 797.2 NaN 857.9 NaN 1168.5 1236.8 NaN 1278.5 1329.9 1371.5 1561.6 NaN 1648.4 NaN].'; 
-% created January 26, using ImprovedRelativePeakLocations
-
-typeaknum = length(typeakwavenum);
-typeakstripwindow = 15;
-tyedgedist = 21;
-
-%% Get Files to Process
-set(handles.initprocessstatus,'string','Status: Initializing...'); pause(1E-6)
-filedir = get(handles.FileDirectory,'string');
-s = what(filedir); allfiles = s.mat;
-specind = logical(1 - ((1-cellfun('isempty', regexp(allfiles,'throughput'))) + ...
-    (1-cellfun('isempty', regexp(allfiles,'neon'))) + ...
-    (1-cellfun('isempty', regexp(allfiles,'tylenol'))) + ...
-    (1-cellfun('isempty', regexp(allfiles,'whitelamp'))) + ...
-    (1-cellfun('isempty', regexp(allfiles,'darkspec')))));
-list = allfiles(specind);
-
-%% Load Dark Spectrum
-set(handles.initprocessstatus,'string','Status: Calculating Dark Spectrum...'); pause(1E-6)
-
-% the file darkspec_calib.mat (which for a long time has simply been a copy
-% of darkspec.mat), when initially loaded, is the raw measurement acquired,
-% which is a 2D matrix (all frames are stored as a single image, which in
-% the case of 5 frames gives dimension of 1280x1024).
-darkspec = load([filedir '/darkspec_cali.mat']);
-% This next line turns the data into a 3D matrix, giving each of the 
-% frames its own, smaller matrix - for a 5-frame acquisition, the output
-% matrix is now 5x256x1024.
-darkspec = squeeze(double(permute(reshape(darkspec.RawData.Spectrum.',px,py, ...
-    str2double(darkspec.RawData.NumofKin)),[3 2 1])./...
-    str2double(darkspec.RawData.NumofAcu)));
-% "mad" is "mean absolute deviation", acting along the first dimension,
-% which is the number of frames -- this produce essentially a 2D matrix,
-% but the first (frame) dimension still exists even though the index only
-% goes to 1.
-% Using "squeeze" eliminates this dimension, producing a truly 2D matrix.
-darkspecmad = squeeze(mad(darkspec,1));
-darkspecmed = squeeze(median(darkspec,1));
-
-% 2024.07.28, AJB: 
-% It looks like this is rejecting values that exceed a certain distance from
-% the median (darkspecmed), setting them to nan.
-darkspec(darkspec > permute(repmat(darkspecmed+5.*darkspecmad,[1 1 size(darkspec,1)]),[3 1 2])) = nan;
-darkspec(darkspec < permute(repmat(darkspecmed-5.*darkspecmad,[1 1 size(darkspec,1)]),[3 1 2])) = nan;
-% "nanmean" simply takes a mean that ignores NaN values.
-darkspec = squeeze(nanmean(darkspec));
-% It is this line above that creates an averaged single frame from the
-% original multiframe darkspec.
-
-% Remove bad pixels%%%Keren: we do not have bad pixels on new CCD
-% 07/14/2020
-% darkspec(82:256,185) = mean(darkspec(82:256,[184 186]),2);
-% darkspec(115:256,308) = mean(darkspec(115:256,[307 309]),2);
-% darkspec(113,501) = mean(darkspec(113,[500 502]),2);
-
-% Filter Dark Spectrum
-% (the window and winsig values are at the start of the 'options' section
-% above)
-
-% AJB note 2024.07.28: the gausskernel is only in the horizontal direction,
-% I believe. That's why the darkspec2 spectrum smears only in the
-% horizontal.
-gausskernel = exp(-(window.^2)./(2.*winsig.^2));
-gausskernel = gausskernel./sum(gausskernel(:));
-% smooth out the 2D data in the single-frame image
-darkspec2 = conv2(darkspec,gausskernel,'same');
-mxwindow = max(window);
-% These next two lines replace the outer boundaries of the convolved
-% image (darspec2) with the original values. I'm not surprised that the
-% edge regions of the convolution might be affected in a way we don't want,
-% e.g. averaging in zeros.
-darkspec2(1:mxwindow,:) = darkspec(1:mxwindow,:); darkspec2((py-mxwindow+1):py,:) = darkspec((py-mxwindow+1):py,:);
-darkspec2(:,1:mxwindow) = darkspec(:,1:mxwindow); darkspec2(:,(px-mxwindow+1):px) = darkspec(:,(px-mxwindow+1):px);
-
-% After all of this processing, what we have is a smoothed version of a
-% single frame. Extreme pixel values have been rejected, using mad and median
-% functions to define extremes ad hoc.
-% Data were then averaged over all frames. 
-% That average frame was conv2-ed by a Gaussian kernel. And
-% finally the edge values were restored to non-convolved data to avoid
-% convolution effects in that zone.
-
-% AJB 2024.07.28:
-% I do not see anywhere that the smoothed darkspec2 has been used to create
-% a new darkspec value. 
-
-% I've left this here in case we want to change the kernel and want to plot
-% the before and after
-
-    % figure; 
-    % subplot(211)
-    % imagesc(darkspec); colormap gray; crange = [900, 1050]; clim(crange);
-    % axis equal; axis tight; colorbar; 
-    % title('darkspec')
-    % subplot(212)
-    % % darkspec = darkspec2; clear darkspec2; %CM comment 12/11/2021
-    % imagesc(darkspec2); colormap gray; clim(crange);
-    % axis equal; axis tight; colorbar; 
-    % title('darkspec2')
-
-% Without setting darkspec = darkspec2 (which we haven't been doing), 
-% I think the darkspec image being used below
-% is just a lightly-corrected (for extreme values) average frame, without
-% any smoothing.
-
-
-% But I want to move to a time-flexible model, so all of the
-% above is really the OLD idea for correcting the dark counts. 
 
 %% Determine Wavelength Calibration
 set(handles.initprocessstatus,'string','Status: Determining Wavelength Calibration...'); pause(1E-6)
