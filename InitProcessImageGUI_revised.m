@@ -208,7 +208,7 @@ function initialprocess_Callback(hObject, eventdata, handles)
 
 % This code runs when the initialprocess callback button runs!
 
-close all
+% close all
 
 %% pre-aberration correction
 
@@ -282,6 +282,15 @@ set(handles.initprocessstatus,'string','Status: Calculating Dark Spectrum...'); 
 % of darkspec.mat), when initially loaded, is the raw measurement acquired,
 % which is a 2D matrix (all frames are stored as a single image, which in
 % the case of 5 frames gives dimension of 1280x1024).
+
+% ajb 2025.07.15 ==> we now know that darkspec_calib.mat can be used to
+% acquire a spectrum for a different amount of time, to match a faster
+% spectrum. So make sure that darkspec_cali is not treated as having the
+% same exposure as darkspec.mat.
+%    I'm not sure if the application here is for calibration files or not.
+%    It will run either way
+%    For now I'll use cali 
+
 darkspec = load([filedir '/darkspec_cali.mat']);
 % This next line turns the data into a 3D matrix, giving each of the 
 % frames its own, smaller matrix - for a 5-frame acquisition, the output
@@ -289,6 +298,12 @@ darkspec = load([filedir '/darkspec_cali.mat']);
 darkspec = squeeze(double(permute(reshape(darkspec.RawData.Spectrum.',px,py, ...
     str2double(darkspec.RawData.NumofKin)),[3 2 1])./...
     str2double(darkspec.RawData.NumofAcu)));
+
+% == ajb == 
+% interject at this point to capture the largest few values (should be due
+% to cosmic rays
+
+
 % "mad" is "mean absolute deviation", acting along the first dimension,
 % which is the number of frames -- this produces essentially a 2D matrix,
 % but the first (frame) dimension still exists even though the index only
@@ -296,6 +311,8 @@ darkspec = squeeze(double(permute(reshape(darkspec.RawData.Spectrum.',px,py, ...
 % Using "squeeze" eliminates this dimension, producing a truly 2D matrix.
 darkspecmad = squeeze(mad(darkspec,1));
 darkspecmed = squeeze(median(darkspec,1));
+% darkspecmad and darkspecmed have averaged over the frames, so these files
+% are only that of one frame, not N. (px = 1024, py = 256)
 
 % 2024.07.28, AJB: 
 % It looks like this is rejecting values that exceed a certain distance from
@@ -347,16 +364,17 @@ darkspec2(:,1:mxwindow) = darkspec(:,1:mxwindow); darkspec2(:,(px-mxwindow+1):px
 % I've left this here in case we want to change the kernel and want to plot
 % the before and after
 
-    % figure; 
-    % subplot(211)
-    % imagesc(darkspec); colormap gray; crange = [900, 1050]; clim(crange);
-    % axis equal; axis tight; colorbar; 
-    % title('darkspec')
-    % subplot(212)
-    % % darkspec = darkspec2; clear darkspec2; %CM comment 12/11/2021
-    % imagesc(darkspec2); colormap gray; clim(crange);
-    % axis equal; axis tight; colorbar; 
-    % title('darkspec2')
+    figure(100); clf
+    subplot(211)
+%    imagesc(darkspec); colormap gray; crange = [900, 1050]; clim(crange);
+    imagesc(darkspec); colormap jet; crange = [850, 900]; clim(crange);
+    axis equal; axis tight; colorbar; 
+    title('darkspec')
+    subplot(212)
+    % darkspec = darkspec2; clear darkspec2; %CM comment 12/11/2021
+    imagesc(darkspec2); colormap gray; % clim(crange);
+    axis equal; axis tight; colorbar; 
+    title('darkspec2')
 
 % Without setting darkspec = darkspec2 (which we haven't been doing), 
 % I think the darkspec image being used below
@@ -366,6 +384,10 @@ darkspec2(:,1:mxwindow) = darkspec(:,1:mxwindow); darkspec2(:,(px-mxwindow+1):px
 
 % But I want to move to a time-flexible model, so all of the
 % above is really the OLD idea for correcting the dark counts. 
+
+% === Sadia will send me info about y=mx+b for establishing readout bias
+% and the rate of dark counts per second.
+
 
 
 %% Aberration correction, June 2025 - AJB
