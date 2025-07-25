@@ -292,6 +292,12 @@ set(handles.initprocessstatus,'string','Status: Calculating Dark Spectrum...'); 
 %    For now I'll use cali 
 
 darkspec = load([filedir '/darkspec_cali.mat']);
+% For non-photonic counts later on, we need to know the time in seconds.
+% This is available from darkspec.RawData.ExposureTime
+%    test this
+ExposureTime = str2num(darkspec.RawData.ExposureTime);
+% Now it is okay to reshape the spectral data and remove all other quantities
+
 % This next line turns the data into a 3D matrix, giving each of the 
 % frames its own, smaller matrix - for a 5-frame acquisition, the output
 % matrix is now 5x256x1024.
@@ -299,9 +305,19 @@ darkspec = squeeze(double(permute(reshape(darkspec.RawData.Spectrum.',px,py, ...
     str2double(darkspec.RawData.NumofKin)),[3 2 1])./...
     str2double(darkspec.RawData.NumofAcu)));
 
-% == ajb == 
-% interject at this point to capture the largest few values (should be due
-% to cosmic rays
+% == ajb 2025.07.18
+% With 5 frames, interject at this point to capture values that are cosmic
+% rays.
+
+% This used to be done at near the end of the processing, but it makes more
+% sense to do all the cosmic ray removal at the detector level, i.e. as raw
+% as possible.
+
+% For this it doesn't matter if it's a darkspec, a calibration file, or a
+% specimen file. We just want to catch any values that we have deemed must
+% be cosmic ray outliers. 
+
+% The settings are already part of the GUI. We can run them here. 
 
 
 % "mad" is "mean absolute deviation", acting along the first dimension,
