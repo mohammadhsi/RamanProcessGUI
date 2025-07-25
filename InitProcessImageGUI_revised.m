@@ -200,6 +200,31 @@ function pushbutton97_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 
 
+% ajb 2025.07.24 : standalone function to preprocess raw data
+% function RC = RawCorrect(hObject, eventdata, handles)
+function RC = RawCorrect(FileDirInfo)
+
+
+% steps:
+%  1. Convert to multiple frames
+%  2: Cosmic ray removal (using anita to reduce variance)
+%  3: Non-photonic count removal
+
+
+% 'initprocessstatus' is for the old version's user interface; it isn't needed now
+% set(handles.initprocessstatus,'string','Status: Initializing...'); pause(1E-6)
+% 
+filedir = get(FileDirInfo,'string');
+s = what(filedir); allfiles = s.mat;
+specind = logical(1 - ((1-cellfun('isempty', regexp(allfiles,'throughput'))) + ...
+    (1-cellfun('isempty', regexp(allfiles,'neon'))) + ...
+    (1-cellfun('isempty', regexp(allfiles,'tylenol'))) + ...
+    (1-cellfun('isempty', regexp(allfiles,'whitelamp'))) + ...
+    (1-cellfun('isempty', regexp(allfiles,'darkspec')))));
+RC = allfiles(specind);
+
+
+
 % --- Executes on button press in initialprocess.
 function initialprocess_Callback(hObject, eventdata, handles)
 % hObject    handle to initialprocess (see GCBO)
@@ -262,8 +287,15 @@ tyedgedist = 21;
 
 %% Get Files to Process
 
+
 % 'initprocessstatus' is for the old version's user interface; it isn't needed now
 set(handles.initprocessstatus,'string','Status: Initializing...'); pause(1E-6)
+
+% ajb 2025.07.25: invoke standalone RawCorrect function
+% need to supply the location of the file directory
+RC_FileDir = handles.FileDirectory;
+Test = RawCorrect(RC_FileDir);
+% 
 
 
 filedir = get(handles.FileDirectory,'string');
