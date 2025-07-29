@@ -202,8 +202,13 @@ function pushbutton97_Callback(hObject, eventdata, handles)
 
 % ajb 2025.07.24 : standalone function to preprocess raw data
 % function RC = RawCorrect(hObject, eventdata, handles)
-function RC = RawCorrect(FileDirInfo)
-
+function RC = RawCorrect(FileDirInfo,WhichFiles)
+% FileDirInfo gets the directory from the handles in the initprocess
+% routine
+% WhichFiles is an integer flag for which files to select:
+%   All = 0;
+%   Samples = 1
+%   Calib = 2
 
 % steps:
 %  1. Convert to multiple frames
@@ -213,17 +218,39 @@ function RC = RawCorrect(FileDirInfo)
 
 % 'initprocessstatus' is for the old version's user interface; it isn't needed now
 % set(handles.initprocessstatus,'string','Status: Initializing...'); pause(1E-6)
-% 
+
+% Get list of files
+% ajb 2025.07.25: different options needed depending upon whether grabbing
+% all data, all sample data, or all calibration data
+All = 0;
+Samples = 1;
+Calib = 2;
+
 filedir = get(FileDirInfo,'string');
 s = what(filedir); allfiles = s.mat;
+
+% two cases: Samples or Calib
+
 specind = logical(1 - ((1-cellfun('isempty', regexp(allfiles,'throughput'))) + ...
-    (1-cellfun('isempty', regexp(allfiles,'neon'))) + ...
-    (1-cellfun('isempty', regexp(allfiles,'tylenol'))) + ...
-    (1-cellfun('isempty', regexp(allfiles,'whitelamp'))) + ...
-    (1-cellfun('isempty', regexp(allfiles,'darkspec')))));
-RC = allfiles(specind);
+            (1-cellfun('isempty', regexp(allfiles,'neon'))) + ...
+            (1-cellfun('isempty', regexp(allfiles,'tylenol'))) + ...
+            (1-cellfun('isempty', regexp(allfiles,'whitelamp'))) + ...
+            (1-cellfun('isempty', regexp(allfiles,'darkspec')))));
+switch WhichFiles
+    case All
+        list = allfiles(logical(specind + ~specind));
+    case Samples
+        list = allfiles(specind);
+    case Calib
+        list = allfiles(~specind);
+end
+% final set of files accessed    
+RC = list;
 
-
+% Convert all files to multiple frames, 
+for ijk = 1:size(RC,1)
+    
+end
 
 % --- Executes on button press in initialprocess.
 function initialprocess_Callback(hObject, eventdata, handles)
@@ -294,7 +321,10 @@ set(handles.initprocessstatus,'string','Status: Initializing...'); pause(1E-6)
 % ajb 2025.07.25: invoke standalone RawCorrect function
 % need to supply the location of the file directory
 RC_FileDir = handles.FileDirectory;
-Test = RawCorrect(RC_FileDir);
+WhichFiles = 0;  % i.e. all files, both Samples and Calib
+% WhichFiles = 1;  % i.e. Samples
+% WhichFiles = 2;  % i.e. Calib
+Test = RawCorrect(RC_FileDir,WhichFiles);
 % 
 
 
