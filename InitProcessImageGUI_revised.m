@@ -200,6 +200,8 @@ function pushbutton97_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 
 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % ajb 2025.07.24 : standalone function to preprocess raw data
 % function RC = RawCorrect(hObject, eventdata, handles)
 function RC = RawCorrect(FileDirInfo,WhichFiles)
@@ -247,10 +249,26 @@ end
 % final set of files accessed    
 RC = list;
 
-% Convert all files to multiple frames, 
-for ijk = 1:size(RC,1)
-    
+% for each accessed file:
+% convert to multiple frames
+sz = size(RC,1);
+myFiles = repmat( struct( 'RawData', 0 ), sz, 1 );
+for ijk = 1:sz
+   % load the 2D file
+   myFiles(ijk) = load([filedir '/' num2str(cell2mat(RC(ijk)))]);
+   % For non-photonic counts later on, we need to know the time in seconds.
+   % This is available from RawData.ExposureTime
+   ExpTime(ijk) = str2num(myFiles(ijk).RawData.ExposureTime); 
+
+   % Now reshape the spectral data to multiple frames (i.e. 3D matrix) 
+
 end
+   
+pause(0.1)
+
+% end of RawCorrect function
+%%%%%%%%%%%%%%%%%%
+
 
 % --- Executes on button press in initialprocess.
 function initialprocess_Callback(hObject, eventdata, handles)
