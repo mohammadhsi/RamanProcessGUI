@@ -231,7 +231,8 @@ Calib = 2;
 filedir = get(FileDirInfo,'string');
 s = what(filedir); allfiles = s.mat;
 
-% two cases: Samples or Calib
+% three cases: All, Samples, or 
+% Calib
 
 specind = logical(1 - ((1-cellfun('isempty', regexp(allfiles,'throughput'))) + ...
             (1-cellfun('isempty', regexp(allfiles,'neon'))) + ...
@@ -248,22 +249,41 @@ switch WhichFiles
 end
 % final set of files accessed    
 RC = list;
+sz = size(RC,1);
+
+% allocate array for RawData; each will eventually be a 3D matrix
+myFrames(1:sz) = struct('RawData', 0);
 
 % for each accessed file:
-% convert to multiple frames
-sz = size(RC,1);
-myFiles = repmat( struct( 'RawData', 0 ), sz, 1 );
 for ijk = 1:sz
-   % load the 2D file
-   myFiles(ijk) = load([filedir '/' num2str(cell2mat(RC(ijk)))]);
+   
+   % first step: convert 2D file to multiple frames 
+   % myFiles(ijk) = load([filedir '/' num2str(cell2mat(RC(ijk)))]);
+   temp = load([filedir '/' num2str(cell2mat(RC(ijk)))]);
    % For non-photonic counts later on, we need to know the time in seconds.
    % This is available from RawData.ExposureTime
-   ExpTime(ijk) = str2num(myFiles(ijk).RawData.ExposureTime); 
+   ExpTime(ijk) = str2num(temp.RawData.ExposureTime); 
+   % other parameters needed for reshaping
+   Acu = str2num(temp.RawData.NumofAcu);
+   Kin = str2num(temp.RawData.NumofKin);
+   ImageSize = temp.RawData.ImageSize;
+   px = ImageSize(2);
+   py = ImageSize(1)/Kin;
+   % Reshape data into a 3D matrix, giving each of the frames its own,
+   % smaller matrix - for a 5-frame acquisition, the output matrix is now
+   % 5x256x1024. All other parameters are lost at this point.
+   temp3D = squeeze(double(permute(reshape(temp.RawData.Spectrum.',px,py, ...
+   Kin),[3 2 1])./Acu));
+   myFrames(ijk).RawData = temp3D;
+   % my5frames(ijk) = squeeze(double(permute(reshape(temp.RawData.Spectrum.',px,py, ...
+   %str2double(temp.RawData.NumofKin)),[3 2 1])./...
+   %str2double(temp.RawData.NumofAcu)));
 
-   % Now reshape the spectral data to multiple frames (i.e. 3D matrix) 
 
 end
-   
+
+% 
+
 pause(0.1)
 
 % end of RawCorrect function
