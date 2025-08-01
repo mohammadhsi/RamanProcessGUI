@@ -279,6 +279,31 @@ for ijk = 1:sz
    %str2double(temp.RawData.NumofKin)),[3 2 1])./...
    %str2double(temp.RawData.NumofAcu)));
 
+   % next step: cosmic ray correction
+   
+   % confirm that frames are ordered correctly: rows and columns
+   AllFrames = myFrames(ijk).RawData;
+   Npixels = px * py;
+   NFrames = floor(Kin/Acu);
+   SingleFrames = zeros(Npixels,NFrames);
+
+   % loop over frames
+   for idx = 1:NFrames
+       % single frame: # of rows, # of columns 
+       temp =  squeeze(AllFrames(idx,:,:));
+       SingleFrames(:,idx) = temp(:);
+   end
+  
+   % START HERE
+   % compare every set of 5 and fix the largest if above sigma threshold
+   % 
+   % comparing as vectors is efficient, but then need to reshape correctly
+   % after comparing 
+   
+   
+   % iterate the 'anita' algorithm 10 times to get polynomial fit and
+   % residual
+
 
 end
 
