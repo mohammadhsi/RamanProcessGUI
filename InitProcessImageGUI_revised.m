@@ -199,7 +199,23 @@ function pushbutton97_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
+%%%%%%%%%%%%%%%%%%%%
+function [fitted,putout] = anita(spectra,order,c1,c2,n)
+% [fitted, fit] = anita(spectra,order,c1,c2,n)
+%Automated fitting for subtraction of fluorescence from biological Raman
+%spectra.
+% fitted: spectra after fluorescence background subtraction; spectra: raw
+% spectra; c1, c2: fitting region; n, iteration time
 
+putin = spectra;
+for i = 1:n
+    [afit,putout]=lsfit(putin,order,c1,c2);
+    cutoff = (afit+abs(afit))/2;
+    putin = putin - cutoff;
+end
+
+fitted = spectra - putout;
+% end of function 'anita'
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % ajb 2025.07.24 : standalone function to preprocess raw data
@@ -280,17 +296,79 @@ for ijk = 1:sz
    %str2double(temp.RawData.NumofAcu)));
 
    % next step: cosmic ray correction
-   
+   PolyOrder = 5;   % polynomial order
+   iter = 10;       % iterations
+   StdFactor = 5;   % number of stdevs to consider an outlier
+
    % confirm that frames are ordered correctly: rows and columns
    AllFrames = myFrames(ijk).RawData;
    Npixels = px * py;
    NFrames = floor(Kin/Acu);
+   
+
+   % run anita on same row for each of five frames (containing a full
+   % horitzontal spectrum)
+   for Row = 1:py   % each row is handled separately to reduce averaging
+       CosmicCheck = zeros(NFrames,px); 
+       Resid = zeros(NFrames,px);
+       for Frame = 1:NFrames   % that row is anita-ed for each frame
+            CosmicCheck(Frame,:) = AllFrames(Frame,Row,:);
+            % run anita 
+            [fitted,putout] = anita(CosmicCheck(Frame,:),PolyOrder,1,px,iter);
+            Resid(Frame,:) = fitted;    % the residual
+       end
+       % ajb 2025.08.04 : confirmed that this plots five frames that
+       % overlap closely
+       
+       % now go pixel by pixel in the Resid spectrum to see if the largest
+       % value is an outlier 
+       % formally: determine if the largest value
+       % exceeds $\mu + n\sigma$; if so, replace it with $\mu$
+       for Pix = 1:px
+           AllFramesOnePixel= Resid(:,Pix);
+           sorted = sort(AllFramesOnePixel);
+           Lower = sorted(1:NFrames-1);  % all but the lowest value
+           Largest = sorted(NFrames);
+           % do the computation
+           LowerMean = mean(Lower);
+           LowerStd = std(Lower);
+           % need to figure out which one is the largest....START HERE!
+
+           if (Largest - LowerMean) > StdFactor * LowerStd
+               Resid(Frame,Pix) = LowerMean; % this is where a cosmic ray gets removed
+           end
+       end
+   end
+   
+   
+   
    SingleFrames = zeros(Npixels,NFrames);
+
+   % for each row, get an anita fit for each of the frames
+   %  take residual for each one
+   %  get mean and stdev for the lowest 4
+   %  see if the fifth is enough SDs greater; if so, relace with lower-4
+   %  mean
+   %  START HERE!
+
 
    % loop over frames
    for idx = 1:NFrames
        % single frame: # of rows, # of columns 
        temp =  squeeze(AllFrames(idx,:,:));
+       % confirmed that this looks like a single frame - ajb 2025.08.03  
+       
+       % due to nontribial photobleaching from intact fingers, need to fit
+       % each row to a polynomial to reduce the variation
+
+       % START HERE
+       %  for each row
+       %   anita fit, 5-th order, 10 iterations
+       %     for each pixel
+       %      fin
+       
+       
+       
        SingleFrames(:,idx) = temp(:);
    end
   
