@@ -290,14 +290,13 @@ for ijk = 1:sz
    % 5x256x1024. All other parameters are lost at this point.
    temp3D = squeeze(double(permute(reshape(temp.RawData.Spectrum.',px,py, ...
    Kin),[3 2 1])./Acu));
+   
    myFrames(ijk).RawData = temp3D;
-   % my5frames(ijk) = squeeze(double(permute(reshape(temp.RawData.Spectrum.',px,py, ...
-   %str2double(temp.RawData.NumofKin)),[3 2 1])./...
-   %str2double(temp.RawData.NumofAcu)));
 
-   % next step: cosmic ray correction
+
+   %% next step: cosmic ray correction
    PolyOrder = 5;   % polynomial order
-   iter = 10;       % iterations
+   iter = 5;       % iterations
    StdFactor = 5;   % number of stdevs to consider an outlier
 
    % confirm that frames are ordered correctly: rows and columns
@@ -305,82 +304,54 @@ for ijk = 1:sz
    Npixels = px * py;
    NFrames = floor(Kin/Acu);
    
-
    % run anita on same row for each of five frames (containing a full
    % horitzontal spectrum)
-   for Row = 1:py   % each row is handled separately to reduce averaging
+tic
+    for Row = 1:py   % each row is handled separately to reduce averaging
+
        CosmicCheck = zeros(NFrames,px); 
        Resid = zeros(NFrames,px);
        for Frame = 1:NFrames   % that row is anita-ed for each frame
             CosmicCheck(Frame,:) = AllFrames(Frame,Row,:);
             % run anita 
             [fitted,putout] = anita(CosmicCheck(Frame,:),PolyOrder,1,px,iter);
-            Resid(Frame,:) = fitted;    % the residual
+            Resid(Frame,:) = fitted;    % i.e. the residual
+            Polynomial(Frame,:) = putout; % for adding back the polynomial
        end
        % ajb 2025.08.04 : confirmed that this plots five frames that
-       % overlap closely
+       % overlap closely and look like residuals
        
-       % now go pixel by pixel in the Resid spectrum to see if the largest
+       % for each row, go pixel by pixel in the Resid spectrum to see if the largest
        % value is an outlier 
-       % formally: determine if the largest value
-       % exceeds $\mu + n\sigma$; if so, replace it with $\mu$
+       % formally: determine if the largest value exceeds $\mu + n\sigma$;
+       % if so, replace it with $\mu$
        for Pix = 1:px
            AllFramesOnePixel= Resid(:,Pix);
-           sorted = sort(AllFramesOnePixel);
-           Lower = sorted(1:NFrames-1);  % all but the lowest value
-           Largest = sorted(NFrames);
-           % do the computation
+           [sorted,IDX] = sort(AllFramesOnePixel);
+           % the next line tells us which Frame has the largest pixel value
+           MaxFrame = IDX(end);
+           % prove this gives the max value
+           MaxValue = AllFramesOnePixel(MaxFrame);
+
+           % remaining values: don't need to keep track of their locations
+           Lower = sorted(1:NFrames-1);  % all but the highest value
+
+           % computation of mean and std of the other values
            LowerMean = mean(Lower);
-           LowerStd = std(Lower);
-           % need to figure out which one is the largest....START HERE!
-
-           if (Largest - LowerMean) > StdFactor * LowerStd
-               Resid(Frame,Pix) = LowerMean; % this is where a cosmic ray gets removed
+           LowerStd = std(Lower);          
+           
+           if ((MaxValue - LowerMean) > StdFactor * LowerStd)
+           % here's where the cosmic ray correction would then happen
+               Resid(MaxFrame,Pix) = LowerMean; 
+               % This needs to be put into the myFrames array
            end
-       end
+       end  
+   
    end
    
-   
-   
-   SingleFrames = zeros(Npixels,NFrames);
+toc    
 
-   % for each row, get an anita fit for each of the frames
-   %  take residual for each one
-   %  get mean and stdev for the lowest 4
-   %  see if the fifth is enough SDs greater; if so, relace with lower-4
-   %  mean
-   %  START HERE!
-
-
-   % loop over frames
-   for idx = 1:NFrames
-       % single frame: # of rows, # of columns 
-       temp =  squeeze(AllFrames(idx,:,:));
-       % confirmed that this looks like a single frame - ajb 2025.08.03  
-       
-       % due to nontribial photobleaching from intact fingers, need to fit
-       % each row to a polynomial to reduce the variation
-
-       % START HERE
-       %  for each row
-       %   anita fit, 5-th order, 10 iterations
-       %     for each pixel
-       %      fin
-       
-       
-       
-       SingleFrames(:,idx) = temp(:);
-   end
-  
-   % START HERE
-   % compare every set of 5 and fix the largest if above sigma threshold
-   % 
-   % comparing as vectors is efficient, but then need to reshape correctly
-   % after comparing 
-   
-   
-   % iterate the 'anita' algorithm 10 times to get polynomial fit and
-   % residual
+% somewhere
 
 
 end
