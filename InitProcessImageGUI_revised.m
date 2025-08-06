@@ -217,6 +217,9 @@ end
 fitted = spectra - putout;
 % end of function 'anita'
 
+end % of function 'anita'
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % ajb 2025.07.24 : standalone function to preprocess raw data
 % function RC = RawCorrect(hObject, eventdata, handles)
@@ -378,12 +381,12 @@ tic
     LowerMean = mean(Lower,2);
     LowerStd = std(Lower,1,2);  % 1=# of samples, 2=dimension       
 
-    %% START HERE !
-    if ((MaxValue - LowerMean) > StdFactor * LowerStd)
-           % here's where the cosmic ray correction would then happen
-               Resid(MaxFrame,Pix) = LowerMean; 
-               % This needs to be put into the myFrames array
-    end
+    % %% START HERE !
+    % if ((MaxValue - LowerMean) > StdFactor * LowerStd)
+    %        % here's where the cosmic ray correction would then happen
+    %            Resid(MaxFrame,Pix) = LowerMean; 
+    %            % This needs to be put into the myFrames array
+    % end
 
        % CosmicCheck(Frame,y) = AllFrames(Frame,y);
        % [fitted,putout] = anita( (CosmicCheck(Frame,y)),PolyOrder,1,px,iter);
@@ -431,7 +434,9 @@ end
 
 % 
 
-pause(0.1)
+% pause(0.1)
+
+end
 
 % end of RawCorrect function
 %%%%%%%%%%%%%%%%%%
