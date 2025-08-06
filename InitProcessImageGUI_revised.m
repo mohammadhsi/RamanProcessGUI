@@ -307,51 +307,124 @@ for ijk = 1:sz
    % run anita on same row for each of five frames (containing a full
    % horitzontal spectrum)
 tic
-    for Row = 1:py   % each row is handled separately to reduce averaging
+%    for Row = 1:py   % each row is handled separately to reduce averaging
 
-       CosmicCheck = zeros(NFrames,px); 
-       Resid = zeros(NFrames,px);
-       for Frame = 1:NFrames   % that row is anita-ed for each frame
-            CosmicCheck(Frame,:) = AllFrames(Frame,Row,:);
-            % run anita 
-            [fitted,putout] = anita(CosmicCheck(Frame,:),PolyOrder,1,px,iter);
-            Resid(Frame,:) = fitted;    % i.e. the residual
-            Polynomial(Frame,:) = putout; % for adding back the polynomial
-       end
-       % ajb 2025.08.04 : confirmed that this plots five frames that
-       % overlap closely and look like residuals
-       
-       % for each row, go pixel by pixel in the Resid spectrum to see if the largest
-       % value is an outlier 
-       % formally: determine if the largest value exceeds $\mu + n\sigma$;
-       % if so, replace it with $\mu$
-       for Pix = 1:px
-           AllFramesOnePixel= Resid(:,Pix);
-           [sorted,IDX] = sort(AllFramesOnePixel);
-           % the next line tells us which Frame has the largest pixel value
-           MaxFrame = IDX(end);
-           % prove this gives the max value
-           MaxValue = AllFramesOnePixel(MaxFrame);
+    CosmicCheck = zeros(NFrames,px); 
+    Resid = zeros(NFrames,px);
+    Polynomial = zeros(NFrames,px);
+    
+    % loop: original version
+    % if 0
+    % for Frame = 1:NFrames   % that row is anita-ed for each frame
+    %      CosmicCheck(Frame,:) = AllFrames(Frame,Row,:);
+    %      % run anita 
+    %      [fitted,putout] = anita(CosmicCheck(Frame,:),PolyOrder,1,px,iter);
+    %      Resid(Frame,:) = fitted;    % i.e. the residual
+    %      Polynomial(Frame,:) = putout; % for adding back the polynomial
+    % end
+    % end % of if 0
+    
+    % vectorized version to increase speed
+    Frame = 1:NFrames;
+    y = 1:py;    % not a loop anymore!
+    % want to run anita algorithm on each 1024-element vector
+    %  -- number of such vectors is NFrames * NRows
+    %  logically should make a 2D matrix, with NFrames*NRows being one
+    %  dimension and NPixels being the "solo" dimension
+    %   This should enable vectorization, i.e. running anita on each row
+    %   (or maybe column?)
+    
+    % reshape AllFrames to have 1024 in the "spectrum" (px) dimension
+    % and : for the other
+    ManyVectors = reshape(AllFrames,[],px);
+    [fitted,putout] = anita(ManyVectors(:,:),PolyOrder,1,px,iter);
+    
+    % figure(1)
+    % plot(fitted'); axis tight
+    % these are indeed spectra (i.e. dimension seems correct)
+    %  able to plot all 1280 line-spectra at once - surely much faster than looping 
+    
+    % decode which 5 frames are the ones to compare
+    
+    % figure(2); clf
+    
+    % this next line generates an image whose orientation of fiber
+    % rows looks like a single frame
+    % (using putout, the polynomial fit, just to make the image familiar
+    % rather than using the residual)
+      
+    % imagesc(1:px,1:py,putout(1:NFrames:NFrames*py,:));
+    
+    % good - this confirms that we assemble one frame by grabbing every
+    % NFrames-th spectrum (e.g. every 5th)
+    %  -- this means that for any pixel, the five frames' values are
+    %  sequential in the y dimension - should be easy to grab them
+    
+    % vectorize checking whether the largest of the pixel values exceeds
+    % the others by too much (in which case replace that value)
 
-           % remaining values: don't need to keep track of their locations
-           Lower = sorted(1:NFrames-1);  % all but the highest value
+    % 'fitted' has 1280x1024
+    % reshape into many rows and NFrame columns
+    fittedLong = (reshape(fitted,NFrames,[]))';
+    % this gets it the right way: each row represents one (x,y) pixel's
+    % values from NFrames
 
-           % computation of mean and std of the other values
-           LowerMean = mean(Lower);
-           LowerStd = std(Lower);          
-           
-           if ((MaxValue - LowerMean) > StdFactor * LowerStd)
+    [sorted,IDX] = sort(fittedLong,2);  % each row sorted
+    MaxFrame = IDX(:,end);  % which frame has the max pixel value for that (x,y)
+    MaxValue = fittedLong(MaxFrame);    % sanity check that each is the largest
+    % get remaining values (don't need to know which)
+    Lower = sorted(:,1:NFrames-1);    % i.e. all but the highest value
+    % computation of mean and std of the other values
+    LowerMean = mean(Lower,2);
+    LowerStd = std(Lower,1,2);  % 1=# of samples, 2=dimension       
+
+    %% START HERE !
+    if ((MaxValue - LowerMean) > StdFactor * LowerStd)
            % here's where the cosmic ray correction would then happen
                Resid(MaxFrame,Pix) = LowerMean; 
                % This needs to be put into the myFrames array
-           end
-       end  
+    end
+
+       % CosmicCheck(Frame,y) = AllFrames(Frame,y);
+       % [fitted,putout] = anita( (CosmicCheck(Frame,y)),PolyOrder,1,px,iter);
+       % Resid(Frame,y) = fitted;     % the residuals
+       % Polynomial(Frame,y) = putout; % for adding back the polynomial
+       % 
+       % 
+       % % ajb 2025.08.04 : confirmed that this plots five frames that
+       % % overlap closely and look like residuals
+       % 
+       % % for each row, go pixel by pixel in the Resid spectrum to see if the largest
+       % % value is an outlier 
+       % % formally: determine if the largest value exceeds $\mu + n\sigma$;
+       % % if so, replace it with $\mu$
+       % for Pix = 1:px
+       %     AllFramesOnePixel= Resid(:,Pix);
+       %     [sorted,IDX] = sort(AllFramesOnePixel);
+       %     % the next line tells us which Frame has the largest pixel value
+       %     MaxFrame = IDX(end);
+       %     % prove this gives the max value
+       %     MaxValue = AllFramesOnePixel(MaxFrame);
+       % 
+       %     % remaining values: don't need to keep track of their locations
+       %     Lower = sorted(1:NFrames-1);  % all but the highest value
+       % 
+       %     % computation of mean and std of the other values
+       %     LowerMean = mean(Lower);
+       %     LowerStd = std(Lower);          
+       % 
+       %     if ((MaxValue - LowerMean) > StdFactor * LowerStd)
+       %     % here's where the cosmic ray correction would then happen
+       %         Resid(MaxFrame,Pix) = LowerMean; 
+       %         % This needs to be put into the myFrames array
+       %     end
+end  
    
-   end
+
    
 toc    
 
-% somewhere
+% fixed pattern correction
 
 
 end
