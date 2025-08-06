@@ -217,7 +217,7 @@ end
 fitted = spectra - putout;
 % end of function 'anita'
 
-end % of function 'anita'
+% end % of function 'anita'
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -430,13 +430,13 @@ toc
 % fixed pattern correction
 
 
-end
+% end
 
 % 
 
 % pause(0.1)
 
-end
+% end
 
 % end of RawCorrect function
 %%%%%%%%%%%%%%%%%%
