@@ -373,20 +373,34 @@ tic
     % values from NFrames
 
     [sorted,IDX] = sort(fittedLong,2);  % each row sorted
-    MaxFrame = IDX(:,end);  % which frame has the max pixel value for that (x,y)
-    MaxValue = fittedLong(MaxFrame);    % sanity check that each is the largest
+    MaxFrame = IDX(:,end);  % which frame has the max pixel value for that (x,y) - confirmed correct
+    
+    % Did not know about the need for sub2ind - thank you to UR ChatGPT for
+    % telling me how to do this! -- ajb 2025.08.09
+    
+        % Create row indices
+        rowIndices = (1:size(fittedLong, 1))';
+    
+        % Use subscript indexing to extract the maximum value for each row
+        MaxValue = fittedLong(sub2ind(size(fittedLong), rowIndices, MaxFrame));
+    
     % get remaining values (don't need to know which)
     Lower = sorted(:,1:NFrames-1);    % i.e. all but the highest value
     % computation of mean and std of the other values
     LowerMean = mean(Lower,2);
     LowerStd = std(Lower,1,2);  % 1=# of samples, 2=dimension       
-
-    % %% START HERE !
-    % if ((MaxValue - LowerMean) > StdFactor * LowerStd)
-    %        % here's where the cosmic ray correction would then happen
-    %            Resid(MaxFrame,Pix) = LowerMean; 
-    %            % This needs to be put into the myFrames array
-    % end
+    
+    % challenge: how to do the if statement for each row when the result
+    % could be different -- maybe assign the larger of the two values in
+    % each case?
+    if ((MaxValue - LowerMean) > StdFactor * LowerStd)
+           % here's where the cosmic ray correction would then happen
+               
+           %%  START HERE!
+           
+           % Resid(MaxFrame,Pix) = LowerMean; 
+               % This needs to be put into the myFrames array
+    end
 
        % CosmicCheck(Frame,y) = AllFrames(Frame,y);
        % [fitted,putout] = anita( (CosmicCheck(Frame,y)),PolyOrder,1,px,iter);
