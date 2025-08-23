@@ -199,6 +199,9 @@ function pushbutton97_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
+%% beginning of some non-trivial functions
+% note that these do not end with an "end"
+
 %%%%%%%%%%%%%%%%%%%%
 function [fitted,putout] = anita(spectra,order,c1,c2,n)
 % [fitted, fit] = anita(spectra,order,c1,c2,n)
@@ -215,9 +218,7 @@ for i = 1:n
 end
 
 fitted = spectra - putout;
-% end of function 'anita'
 
-% end % of function 'anita'
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -282,7 +283,7 @@ for ijk = 1:sz
    % For non-photonic counts later on, we need to know the time in seconds.
    % This is available from RawData.ExposureTime
    ExpTime(ijk) = str2num(temp.RawData.ExposureTime); 
-   % other parameters needed for reshaping
+   % other parameters needed for reshaping - retained prior to reshaping
    Acu = str2num(temp.RawData.NumofAcu);
    Kin = str2num(temp.RawData.NumofKin);
    ImageSize = temp.RawData.ImageSize;
@@ -300,7 +301,7 @@ for ijk = 1:sz
    %% next step: cosmic ray correction
    PolyOrder = 5;   % polynomial order
    iter = 5;       % iterations
-   StdFactor = 5;   % number of stdevs to consider an outlier
+   StdFactor = 1;   % number of stdevs to consider an outlier
 
    % confirm that frames are ordered correctly: rows and columns
    AllFrames = myFrames(ijk).RawData;
@@ -393,10 +394,14 @@ tic
     % challenge: how to do the if statement for each row when the result
     % could be different -- maybe assign the larger of the two values in
     % each case?
-    if ((MaxValue - LowerMean) > StdFactor * LowerStd)
+    CR = 0; % indexing cosmic ray events
+    if ((MaxValue - LowerMean) > (StdFactor * LowerStd) )
            % here's where the cosmic ray correction would then happen
-               
-           %%  START HERE!
+           CR = CR + 1; 
+           % currently showing up as 0 even with 1 SD setting -- 
+
+           % START HERE!!
+           
            
            % Resid(MaxFrame,Pix) = LowerMean; 
                % This needs to be put into the myFrames array
@@ -435,11 +440,12 @@ tic
        %         Resid(MaxFrame,Pix) = LowerMean; 
        %         % This needs to be put into the myFrames array
        %     end
+toc
+
 end  
    
 
-   
-toc    
+  
 
 % fixed pattern correction
 
