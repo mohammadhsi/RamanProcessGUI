@@ -289,6 +289,8 @@ for ijk = 1:sz
    ImageSize = temp.RawData.ImageSize;
    px = ImageSize(2);
    py = ImageSize(1)/Kin;
+   
+   %% Reshaping data
    % Reshape data into a 3D matrix, giving each of the frames its own,
    % smaller matrix - for a 5-frame acquisition, the output matrix is now
    % 5x256x1024. All other parameters are lost at this point.
@@ -301,7 +303,7 @@ for ijk = 1:sz
    %% next step: cosmic ray correction
    PolyOrder = 5;   % polynomial order
    iter = 5;       % iterations
-   StdFactor = 1;   % number of stdevs to consider an outlier
+   StdFactor = 5;   % number of stdevs to consider an outlier
 
    % confirm that frames are ordered correctly: rows and columns
    AllFrames = myFrames(ijk).RawData;
@@ -341,6 +343,7 @@ tic
     % reshape AllFrames to have 1024 in the "spectrum" (px) dimension
     % and : for the other
     ManyVectors = reshape(AllFrames,[],px);
+    % run the anita routine to overcome the fluorescence photobleaching
     [fitted,putout] = anita(ManyVectors(:,:),PolyOrder,1,px,iter);
     
     % figure(1)
@@ -385,27 +388,42 @@ tic
         % Use subscript indexing to extract the maximum value for each row
         MaxValue = fittedLong(sub2ind(size(fittedLong), rowIndices, MaxFrame));
     
+    % calculate the average of all five frames
+    AllFramesMean = mean(fittedLong,2);
+    
     % get remaining values (don't need to know which)
     Lower = sorted(:,1:NFrames-1);    % i.e. all but the highest value
     % computation of mean and std of the other values
     LowerMean = mean(Lower,2);
     LowerStd = std(Lower,1,2);  % 1=# of samples, 2=dimension       
-    
-    % challenge: how to do the if statement for each row when the result
-    % could be different -- maybe assign the larger of the two values in
-    % each case?
-    CR = 0; % indexing cosmic ray events
-    if ((MaxValue - LowerMean) > (StdFactor * LowerStd) )
-           % here's where the cosmic ray correction would then happen
-           CR = CR + 1; 
-           % currently showing up as 0 even with 1 SD setting -- 
+       
+    % next line has zeros everywhere except when there's a cosmic ray
+    CosmicValues = max(MaxValue - LowerMean,  StdFactor * LowerStd) - StdFactor * LowerStd;
+    % find which indices are nonzero
+    nonZeroIndices = find(CosmicValues ~= 0);
+    % at these indices, replace AllFramesMean with LowerMean - i.e. don't
+    % use the cosmic ray component in calculating the mean
+    AllFramesMean(nonZeroIndices) = LowerMean(nonZeroIndices);
+    % at this point, there is no cosmic ray influence in the data anymore
 
-           % START HERE!!
-           
-           
-           % Resid(MaxFrame,Pix) = LowerMean; 
-               % This needs to be put into the myFrames array
-    end
+    %% resupply the polynomials that anita subtracted off
+
+    % START HERE! 
+    % - reshape the data to return to 5 frames
+    % - further reshape the data to return to single image (here, 1280 rows)?
+    % - return polynomial to each of the rows (i.e. the only thing
+    % permanent here is the cosmic ray correction)
+    % - then once again reshape forwards to get the five frame, sans
+    % cosmics
+    % - average the five frames - at this point there is no reason not to,
+    % as it simply helps the signal to noise
+
+     
+
+
+
+    % get these indices, and supply the Lower4Mean values at these
+    % at all other indices, use the mean of all 5
 
        % CosmicCheck(Frame,y) = AllFrames(Frame,y);
        % [fitted,putout] = anita( (CosmicCheck(Frame,y)),PolyOrder,1,px,iter);
@@ -442,23 +460,16 @@ tic
        %     end
 toc
 
-end  
+
+
+
+end  % of each file
    
 
   
 
 % fixed pattern correction
 
-
-% end
-
-% 
-
-% pause(0.1)
-
-% end
-
-% end of RawCorrect function
 %%%%%%%%%%%%%%%%%%
 
 
