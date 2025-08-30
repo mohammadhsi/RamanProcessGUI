@@ -346,21 +346,21 @@ tic
     % run the anita routine to overcome the fluorescence photobleaching
     [fitted,putout] = anita(ManyVectors(:,:),PolyOrder,1,px,iter);
     
-    % figure(1)
-    % plot(fitted'); axis tight
+    figure(1)
+    plot(fitted'); axis tight
     % these are indeed spectra (i.e. dimension seems correct)
     %  able to plot all 1280 line-spectra at once - surely much faster than looping 
     
     % decode which 5 frames are the ones to compare
     
-    % figure(2); clf
+    figure(2); clf
     
     % this next line generates an image whose orientation of fiber
     % rows looks like a single frame
     % (using putout, the polynomial fit, just to make the image familiar
     % rather than using the residual)
       
-    % imagesc(1:px,1:py,putout(1:NFrames:NFrames*py,:));
+    imagesc(1:px,1:py,putout(1:NFrames:NFrames*py,:));
     
     % good - this confirms that we assemble one frame by grabbing every
     % NFrames-th spectrum (e.g. every 5th)
@@ -388,7 +388,8 @@ tic
         % Use subscript indexing to extract the maximum value for each row
         MaxValue = fittedLong(sub2ind(size(fittedLong), rowIndices, MaxFrame));
     
-    % calculate the average of all five frames
+    % calculate the average of all five frames (for every pixel of every
+    % frame - this produces a vector)
     AllFramesMean = mean(fittedLong,2);
     
     % get remaining values (don't need to know which)
@@ -401,15 +402,40 @@ tic
     CosmicValues = max(MaxValue - LowerMean,  StdFactor * LowerStd) - StdFactor * LowerStd;
     % find which indices are nonzero
     nonZeroIndices = find(CosmicValues ~= 0);
+    
+    % ajb 2025.08.30:
+    % at these rows, MaxFrame tells us which frame had the max pixel value,
+    % and MaxValue tells us what the maximum value is
+
+    % We need to replace the cosmic value (by definition the largest)
+    % with the average of the other frames' value (LowerMean) in the row.
+    % This is done using fittedLong (see definition of MaxValue above),
+    % which is a 262144x5 2D matrix
+        % START HERE!
+    
+    
+    
+    
     % at these indices, replace AllFramesMean with LowerMean - i.e. don't
     % use the cosmic ray component in calculating the mean
     AllFramesMean(nonZeroIndices) = LowerMean(nonZeroIndices);
+    
+    
+    
+    
+    
     % at this point, there is no cosmic ray influence in the data anymore
-
+    
     %% resupply the polynomials that anita subtracted off
 
     % START HERE! 
-    % - reshape the data to return to 5 frames
+    % - reshape the data (currently a 2D matrix, with each row supplying one pixel's 
+    % value at each of the frames;
+    % one of those values is occasionally so high that it is replaced by
+    % the mean of the other ones (thus eliminating the cosmic ray)
+
+        % use permute to reshape AllFramesMean to a 5x
+
     % - further reshape the data to return to single image (here, 1280 rows)?
     % - return polynomial to each of the rows (i.e. the only thing
     % permanent here is the cosmic ray correction)
