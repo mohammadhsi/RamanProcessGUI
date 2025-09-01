@@ -422,15 +422,51 @@ tic
     imagesc(ManyCorrectedSpectra);
     % looks like a single frame; has the right phosphate peak image shape
     % but hard to tell if all details are right from the anita-ed data
-
-    % need to get the mean of the five polynomials that were used to fit
-    % the five individual frames -- i.e. the 'putout' output from anita
-    % --> need to grab the *right* five frames START HERE
     
     % ajb 2025.09.01 : 
-    % I think that the first five spectra of ManyVectors are the first
-    % spectral row of each of the five frames -- but START HERE!!
+    % confirmed: the first NFrames spectra of ManyVectors are the first
+    % spectral row of each of the N frames 
 
+    % % here's the average of those rows
+    % MeanPoly = mean(putout(1:NFrames,:),1);
+    % % adding this to the first row of ManyCorrectedSpectra
+    % MeanTotalRow = ManyCorrectedSpectra(1,:) + MeanPoly;
+    % % confirm that this equals the original first row of ManyVectors
+    % figure(11); cla
+    % plot(MeanTotalRow,'k');
+    % % get mean of the original five frames
+    % hold on
+    % plot(mean(ManyVectors(1:NFrames,:)),'r');
+
+
+
+    % vectorized Matlab version, thanks to Chat GPT
+    
+    A = putout; % the matrix of anita polynomials that were used
+    % Reshape the matrix so that groups of 5 rows are stacked along the
+    % third (highest) dimension
+    reshapedA = reshape(A, 5, [], size(A, 2));
+    % reshapedA = reshape(A, 5, size(A, 2), []);
+   
+    % Compute the mean along the first dimension (rows within each group of 5)
+    averagedA = squeeze(mean(reshapedA, 1));    
+    MeanPutout = averagedA;
+
+    % sum up the cosmic-ray-corrected spectra and the anita polynomials
+    % (both are the means of all frames, so the resulting data is just one
+    % image frame)
+    CosmicCorrectedImage = ManyCorrectedSpectra + MeanPutout;
+    figure(100); cla
+    imagesc(CosmicCorrectedImage)
+
+
+    % we should get back a
+    % smooth-looking image because of the large amount of readout bias and
+    % dark current
+    % 
+    % how to vectorize
+    % need to take mean of every 5 rows, but I need a function that
+    % vectorizes this
 
     % --> apply the corresponding anita polynomial for each row
     
