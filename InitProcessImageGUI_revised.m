@@ -354,7 +354,7 @@ tic
     
     % decode which 5 frames are the ones to compare
     
-    figure(2); clf
+    figure(2); cla
     
     % this next line generates an image whose orientation of fiber
     % rows looks like a single frame
@@ -451,21 +451,18 @@ tic
 
     % START HERE
   
-AJB = 1;
+
 
     % There is no reason to create the 5 individual frames. 
     % But we need to provide the polynomial spectra that fit the
     % individual frames, in case the overall fluorescence is useful in the
     % future.
 
-    %
+    % This is future work - for now we will push forward on the remaining
+    % pieces, starting with fixed pattern correction and then aberration
+    % correction 
 
-    
-    
-    % resupply the polynomials that anita subtracted off
 
-    
-    
     
     % ajb 2025.08.30:
     % at these rows, MaxFrame tells us which frame had the max pixel value,
@@ -478,9 +475,7 @@ AJB = 1;
         % START HERE!
     
     
-    
- 
-    
+      
 
     % START HERE! 
     % - reshape the data (currently a 2D matrix, with each row supplying one pixel's 
@@ -548,7 +543,9 @@ end  % of each file
 
   
 
-% fixed pattern correction
+%% fixed pattern correction
+
+AJB = 1;
 
 %%%%%%%%%%%%%%%%%%
 
