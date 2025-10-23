@@ -343,24 +343,25 @@ tic
     % reshape AllFrames to have 1024 in the "spectrum" (px) dimension
     % and : for the other
     ManyVectors = reshape(AllFrames,[],px);
-    % run the anita routine to overcome the fluorescence photobleaching
+    % run the anita routine to overcome the fluorescence photobleaching in
+    % each individual row
     [fitted,putout] = anita(ManyVectors(:,:),PolyOrder,1,px,iter);
     
-    % figure(1)
-    % plot(fitted'); axis tight
+    figure(1)
+    plot(fitted'); axis tight
     % these are indeed spectra (i.e. dimension seems correct)
     %  able to plot all 1280 line-spectra at once - surely much faster than looping 
     
     % decode which 5 frames are the ones to compare
     
-    % figure(2); clf
+    figure(2); cla
     
     % this next line generates an image whose orientation of fiber
     % rows looks like a single frame
     % (using putout, the polynomial fit, just to make the image familiar
     % rather than using the residual)
       
-    % imagesc(1:px,1:py,putout(1:NFrames:NFrames*py,:));
+    imagesc(1:px,1:py,putout(1:NFrames:NFrames*py,:));
     
     % good - this confirms that we assemble one frame by grabbing every
     % NFrames-th spectrum (e.g. every 5th)
@@ -374,7 +375,9 @@ tic
     % reshape into many rows and NFrame columns
     fittedLong = (reshape(fitted,NFrames,[]))';
     % this gets it the right way: each row represents one (x,y) pixel's
-    % values from NFrames
+    % values from each of the NFrames
+
+
 
     [sorted,IDX] = sort(fittedLong,2);  % each row sorted
     MaxFrame = IDX(:,end);  % which frame has the max pixel value for that (x,y) - confirmed correct
@@ -388,7 +391,8 @@ tic
         % Use subscript indexing to extract the maximum value for each row
         MaxValue = fittedLong(sub2ind(size(fittedLong), rowIndices, MaxFrame));
     
-    % calculate the average of all five frames
+    % calculate the average of all five frames (for every pixel of every
+    % frame - this produces a vector)
     AllFramesMean = mean(fittedLong,2);
     
     % get remaining values (don't need to know which)
@@ -401,15 +405,86 @@ tic
     CosmicValues = max(MaxValue - LowerMean,  StdFactor * LowerStd) - StdFactor * LowerStd;
     % find which indices are nonzero
     nonZeroIndices = find(CosmicValues ~= 0);
+    
     % at these indices, replace AllFramesMean with LowerMean - i.e. don't
     % use the cosmic ray component in calculating the mean
     AllFramesMean(nonZeroIndices) = LowerMean(nonZeroIndices);
-    % at this point, there is no cosmic ray influence in the data anymore
+    % at this point, AllFramesMean has no cosmic ray influence in the data 
+    
+    
+    %% Convert data back to a cosmic-ray-corrected single averaged frame
+    % Currently AllFramesMean has dimension NFrames x (Number of total
+    % spectral rows).
+    % --> convert back to (length of spectral row) X (number of
+    % spectral rows, including all NFrames).
+    ManyCorrectedSpectra = reshape(AllFramesMean,[],px);
+    % figure(10);
+    % imagesc(ManyCorrectedSpectra);
+    % looks like a single frame; has the right phosphate peak image shape
+    % but hard to tell if all details are right from the anita-ed data
+    
+    % ajb 2025.09.01 : 
+    % confirmed: the first NFrames spectra of ManyVectors are the first
+    % spectral row of each of the N frames 
 
-    %% resupply the polynomials that anita subtracted off
+    % vectorized Matlab code (thanks to Chat GPT) for averaging the
+    % polynomials associated with a given row (NFrames such rows)
+    A = putout;     % i.e. polynomials
+    % Reshape the matrix so that groups of 5 rows are stacked along the
+    % third (highest) dimension
+    reshapedA = reshape(A, NFrames, [], size(A, 2));   
+    % Compute the mean along the first dimension (rows within each group of
+    % NFrames)
+    averagedA = squeeze(mean(reshapedA, 1));    
+    MeanPutout = averagedA;
+
+    % sum up the cosmic-ray-corrected spectra and the anita polynomials
+    % (both are the means of all frames, so the resulting data is just one
+    % image frame)
+    CosmicCorrectedImage = ManyCorrectedSpectra + MeanPutout;
+    figure(100); cla
+    imagesc(CosmicCorrectedImage)
+    
+    % visually this looks right:
+    %   single frame including fluorescence and offset
+    %   cosmic rays corrected
+
+    % START HERE
+  
+
+
+    % There is no reason to create the 5 individual frames. 
+    % But we need to provide the polynomial spectra that fit the
+    % individual frames, in case the overall fluorescence is useful in the
+    % future.
+
+    % This is future work - for now we will push forward on the remaining
+    % pieces, starting with fixed pattern correction and then aberration
+    % correction 
+
+
+    
+    % ajb 2025.08.30:
+    % at these rows, MaxFrame tells us which frame had the max pixel value,
+    % and MaxValue tells us what the maximum value is
+
+    % We need to replace the cosmic value (by definition the largest)
+    % with the average of the other frames' value (LowerMean) in the row.
+    % This is done using fittedLong (see definition of MaxValue above),
+    % which is a 262144x5 2D matrix
+        % START HERE!
+    
+    
+      
 
     % START HERE! 
-    % - reshape the data to return to 5 frames
+    % - reshape the data (currently a 2D matrix, with each row supplying one pixel's 
+    % value at each of the frames;
+    % one of those values is occasionally so high that it is replaced by
+    % the mean of the other ones (thus eliminating the cosmic ray)
+
+        % use permute to reshape AllFramesMean to a 5x
+
     % - further reshape the data to return to single image (here, 1280 rows)?
     % - return polynomial to each of the rows (i.e. the only thing
     % permanent here is the cosmic ray correction)
@@ -468,7 +543,9 @@ end  % of each file
 
   
 
-% fixed pattern correction
+%% fixed pattern correction
+
+AJB = 1;
 
 %%%%%%%%%%%%%%%%%%
 
