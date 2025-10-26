@@ -540,12 +540,27 @@ toc
 
 end  % of each file
    
-
-  
-
 %% fixed pattern correction
 
+% ajb 2025.10.26 : including Sadia's code for generating row-level fixed
+% pattern correction
+
+% The code is 
+% ".\BergerLabBoneProject\Code\FPC White MetaFrame Approach\FPCRowbyRow_metaframes.m"
+
+% This is essential for our 0mm-offset fiber bundle, because the fixed
+% pattern is greater than the shot noise.
+
+%% Sadia's code
+
+
+
+
+
 AJB = 1;
+  
+
+
 
 %%%%%%%%%%%%%%%%%%
 
