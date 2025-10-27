@@ -583,6 +583,11 @@ DarkCountsRemoved = DarkCoeff * t + ReadoutOffset;
 % This is essential for our 0mm-offset fiber bundle, because the fixed
 % pattern is greater than the shot noise.
 
+function FixedPatternCorrection = FPC(ImageIn, WL)
+% function FixedPatternCorrection = FPC(ImageIn, WL)
+
+
+
 
 
 
