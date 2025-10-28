@@ -1,3 +1,24 @@
+% Fixed Pattern Correction
+
+%  based upon Sadia's script "FPCRowbyRow_.metaframes"
+%    The goal of this was to apply fixed pattern correction to the zero-mm
+%    data and then add back the non-photon counts -- because the
+%    expectation was that the corrected data would then be sent as "raw"
+%    data to be treated.
+
+%  ajb modification 2025.10.27:
+%    Our goal now is simply to average all of the white light frames to
+%    make a single frame with high SNR (fixed-pattern limited rather than
+%    shot noise limited) so that fixed pattern can be corrected. The
+%    correction factor is then applied to the biological data. Note that
+%    the biological specimen's measurement time is independent of the fixed
+%    pattern data.
+%    
+%    There is no longer any need to re-add the non-photon counts
+%    afterwards. We simply move on to the next step, which will be
+%    aberration correction.
+
+
 % clc
 clear
 close all
@@ -6,11 +27,13 @@ close all
 
 AJBPrefix = 'C:\Users\ajber\Box\research';
 
+% white light and darkPath, 25 (or in one case 75) frames of 9 sec
 WLdata25APath = [AJBPrefix,'\BergerLabBoneProject\Data\Sadia\05March2025\WL_25F_9s.mat'];
 WLdata25BPath = [AJBPrefix,'\BergerLabBoneProject\Data\Sadia\05March2025\WL_25F_9s_P2.mat'];
 WLdata75Path  = [AJBPrefix,'\BergerLabBoneProject\Data\Sadia\05March2025\WL_75F_9s.mat'];
-
 darkPath      = [AJBPrefix, '\BergerLabBoneProject\Data\Sadia\05March2025\DS_25F_9s.mat'];
+
+% cadaver measurement and corresponding DarkPath
 measDataPath  = [AJBPrefix,'\BergerLabBoneProject\Data\Cadaver\1st_14\2024_05_15\MD24021688_T_D2P2_MM00.mat'];
 measDarkPath  = [AJBPrefix,'\BergerLabBoneProject\Data\Cadaver\1st_14\2024_05_15\darkspec.mat'];
 
@@ -135,16 +158,39 @@ for f = 1:numMeasFrames
     Z_meas(:,:,f) = Z_meas(:,:,f) - Z_Dark(:,:,f);
 end
 
-%% APPLY CF_3D FOR rows0 ONLY
-Z_meas_corrected = Z_meas;
+%% NEW: Take the mean of Z_meas(:,:,:) over the third dimension
+% this gives us an average single frame of data, 256 x 1024
 
-for f = 1:numMeasFrames
-    for rr = rows0
-        measRow       = Z_meas(rr,:,f);
-        correctionRow = CF_3D(rr,:,f);  % 1x1024
-        Z_meas_corrected(rr,:,f) = measRow ./ correctionRow;
-    end
+OneFrame = mean(Z_meas(:,:,f),3);
+
+% we only care about the high-SNR average frame
+
+% similarly, we only care about the mean of CF_3D, not the individual
+% frames
+
+OneCF = mean(CF_3D(:,:,f),3);
+
+%% APPLY CF_3D FOR rows0 ONLY
+
+%Z_meas_corrected = Z_meas;
+
+for rr = rows0
+    measRow       = OneFrame(rr,:);
+    correctionRow = OneCF(rr,:);  % 1x1024
+    OneFrame_corrected(rr,:) = measRow ./ correctionRow;
 end
+
+AJB = 1;
+
+% for f = 1:numMeasFrames
+%     for rr = rows0
+%         measRow       = Z_meas(rr,:,f);
+%         correctionRow = CF_3D(rr,:,f);  % 1x1024
+%         Z_meas_corrected(rr,:,f) = measRow ./ correctionRow;
+%     end
+% end
+
+
 
 %% RE-ADD THE DARK OFFSET TO THE CORRECTED DATA
 % so final .mat has the same offset as raw
