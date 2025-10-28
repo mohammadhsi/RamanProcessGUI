@@ -127,7 +127,7 @@ axis tight;
 
 %% BUILD 3D CORRECTION FACTOR, ONLY rows0 => (256x1024x5)
 smoothWindow = 80;  
-CF_3D = ones(numRows, numCols, numMetaFrames);
+CF_3D = ones(numRows, numCols, numMetaFrames);  % default is all 1's
 
 for f = 1:numMetaFrames
     for rr = rows0
@@ -159,20 +159,20 @@ for f = 1:numMeasFrames
 end
 
 %% NEW: Take the mean of Z_meas(:,:,:) over the third dimension
-% this gives us an average single frame of data, 256 x 1024
+% this gives us an average single frame of biological data, 256 x 1024
 
-OneFrame = mean(Z_meas(:,:,f),3);
+OneFrame = mean(Z_meas,3);
 
 % we only care about the high-SNR average frame
 
 % similarly, we only care about the mean of CF_3D, not the individual
 % frames
 
-OneCF = mean(CF_3D(:,:,f),3);
+OneCF = mean(CF_3D,3);
 
 %% APPLY CF_3D FOR rows0 ONLY
 
-%Z_meas_corrected = Z_meas;
+OneFrame_corrected = OneFrame;
 
 for rr = rows0
     measRow       = OneFrame(rr,:);
@@ -180,7 +180,33 @@ for rr = rows0
     OneFrame_corrected(rr,:) = measRow ./ correctionRow;
 end
 
-AJB = 1;
+
+
+%% Plot before and after
+
+figure(2)
+
+SubFig = 210;
+
+% initial image
+subplot(SubFig+1)
+imagesc(OneFrame); colormap('gray')
+title('before')
+% final image
+subplot(SubFig+2)
+imagesc(OneFrame_corrected); colormap('gray')
+title('after')
+% spectra from rr
+% subplot(SubFig+3)
+% hold off
+% plot(mean(OneFrame(rr,:),1),'r');
+% hold on
+% plot(mean(OneFrame_corrected(rr,:),1),'b');
+% title('0 mm spectra before and after correction')
+
+
+return
+
 
 % for f = 1:numMeasFrames
 %     for rr = rows0
@@ -194,7 +220,10 @@ AJB = 1;
 
 %% RE-ADD THE DARK OFFSET TO THE CORRECTED DATA
 % so final .mat has the same offset as raw
-for f = 1:numMeasFrames
-    Z_meas_corrected(:,:,f) = Z_meas_corrected(:,:,f) + Z_Dark(:,:,f);
-end
+
+% we no longer need this
+
+% for f = 1:numMeasFrames
+%     Z_meas_corrected(:,:,f) = Z_meas_corrected(:,:,f) + Z_Dark(:,:,f);
+% end
 
