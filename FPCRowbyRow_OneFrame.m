@@ -125,7 +125,7 @@ title(sprintf('WL HF Ripple: row %d across 5 meta-frames', testRow));
 legend('Location','bestoutside');
 axis tight;
 
-%% BUILD 3D CORRECTION FACTOR, ONLY rows0 => (256x1024x5)
+%% BUILD 3D CORRECTION FACTOR (CF), ONLY rows0 => (256x1024x5)
 smoothWindow = 80;  
 CF_3D = ones(numRows, numCols, numMetaFrames);  % default is all 1's
 
@@ -161,21 +161,20 @@ end
 %% NEW: Take the mean of Z_meas(:,:,:) over the third dimension
 % this gives us an average single frame of biological data, 256 x 1024
 
-OneFrame = mean(Z_meas,3);
-
+OneFrame = mean(Z_meas,3);      % mean frame of *biological data*
 % we only care about the high-SNR average frame
 
 % similarly, we only care about the mean of CF_3D, not the individual
 % frames
 
-OneCF = mean(CF_3D,3);
+OneCF = mean(CF_3D,3);          % mean frame of *correction factor*
 
 %% APPLY CF_3D FOR rows0 ONLY
 
 OneFrame_corrected = OneFrame;
 
 for rr = rows0
-    measRow       = OneFrame(rr,:);
+    measRow       = OneFrame(rr,:); % raw plot of the biological data
     correctionRow = OneCF(rr,:);  % 1x1024
     OneFrame_corrected(rr,:) = measRow ./ correctionRow;
 end
@@ -196,16 +195,23 @@ title('before')
 subplot(SubFig+2)
 imagesc(OneFrame_corrected); colormap('gray')
 title('after')
+
 % spectra from rr
-% subplot(SubFig+3)
-% hold off
+%subplot(SubFig+3)
+figure(3); clf;
+imagesc(OneCF); colormap('gray');
+
+return
+
+
+
 % plot(mean(OneFrame(rr,:),1),'r');
 % hold on
 % plot(mean(OneFrame_corrected(rr,:),1),'b');
 % title('0 mm spectra before and after correction')
-
-
-return
+% 
+% 
+% return
 
 
 % for f = 1:numMeasFrames
