@@ -31,28 +31,54 @@ AJBPrefix = 'C:\Users\ajber\Box\research';
 WLdata25APath = [AJBPrefix,'\BergerLabBoneProject\Data\Sadia\05March2025\WL_25F_9s.mat'];
 WLdata25BPath = [AJBPrefix,'\BergerLabBoneProject\Data\Sadia\05March2025\WL_25F_9s_P2.mat'];
 WLdata75Path  = [AJBPrefix,'\BergerLabBoneProject\Data\Sadia\05March2025\WL_75F_9s.mat'];
-darkPath      = [AJBPrefix, '\BergerLabBoneProject\Data\Sadia\05March2025\DS_25F_9s.mat'];
+
+% darkPath      = [AJBPrefix, '\BergerLabBoneProject\Data\Sadia\05March2025\DS_25F_9s.mat'];
+
+% Dark frames for WL – now using three dark files
+DSdata25APath = [AJBPrefix, '\BergerLabBoneProject\Data\Sadia\2025-03-24\DS_25F_9s.mat'];
+DSdata25BPath = [AJBPrefix, '\BergerLabBoneProject\Data\Sadia\2025-03-24\DS_25F_9s_P2.mat'];
+DSdata75Path  = [AJBPrefix, '\BergerLabBoneProject\Data\Sadia\2025-03-24\DS_75F_9s.mat'];
 
 % cadaver measurement and corresponding DarkPath
 measDataPath  = [AJBPrefix,'\BergerLabBoneProject\Data\Cadaver\1st_14\2024_05_15\MD24021688_T_D2P2_MM00.mat'];
 measDarkPath  = [AJBPrefix,'\BergerLabBoneProject\Data\Cadaver\1st_14\2024_05_15\darkspec.mat'];
 
 % Rows to correct (0mm region)
-rows0 = 70:92;
+% rows0 = 70:92; % original "tight" guess
+rows0 = 60:110; % better sense of the values above and below the 0 mm region
+
+ZerommOnly = 74:96;  % values associated with the 0 mm region only (for summing)
 
 %% LOAD & AVERAGE THE 9s DARK FOR BASELINE OFFSET ===
-darkStruct = load(darkPath);
-rawDark   = double(darkStruct.RawData.Spectrum);   % e.g. (6400 x 1024) => 25 frames
+% darkStruct = load(darkPath);
+% rawDark   = double(darkStruct.RawData.Spectrum);   % e.g. (6400 x 1024) => 25 frames
 
 numRows = 256; 
 numCols = 1024;
 
-% Reshape the 25 dark frames => (256 x 1024 x 25)
-Z_darkAll = reshape(rawDark.', [numCols, numRows, 25]);
-Z_darkAll = permute(Z_darkAll, [2,1,3]);  % => (256 x 1024 x 25)
+% 1B) Load dark for WL from three DS files, reshape and average to obtain a baseline offset
+dsStruct25A = load(DSdata25APath);
+dsStruct25B = load(DSdata25BPath);
+dsStruct75  = load(DSdata75Path);
 
-% Average them => (256 x 1024) baseline offset
-Dark_9s = mean(Z_darkAll, 3);
+rawDS_25A = double(dsStruct25A.RawData.Spectrum);
+rawDS_25B = double(dsStruct25B.RawData.Spectrum);
+rawDS_75  = double(dsStruct75.RawData.Spectrum);
+
+Z_ds25A = reshape(rawDS_25A.', [numCols, numRows, 25]);
+Z_ds25A = permute(Z_ds25A, [2,1,3]);  % (256 x 1024 x 25)
+
+Z_ds25B = reshape(rawDS_25B.', [numCols, numRows, 25]);
+Z_ds25B = permute(Z_ds25B, [2,1,3]);
+
+Z_ds75 = reshape(rawDS_75.', [numCols, numRows, 75]);
+Z_ds75 = permute(Z_ds75, [2,1,3]);
+
+% Combine all dark frames from DS files: (256 x 1024 x 125)
+Z_dsAll = cat(3, Z_ds25A, Z_ds25B, Z_ds75);
+
+% Average them to get the dark offset for WL
+darkWLAvg = mean(Z_dsAll, 3);  % (256 x 1024)
 
 %% LOAD & MERGE PARTIAL WHITELAMP => 125 FRAMES (256x1024x125)
 wlStruct25A = load(WLdata25APath);
@@ -74,9 +100,9 @@ Z_wl75  = permute(Z_wl75, [2,1,3]);
 
 Z_wlAll = cat(3, Z_wl25A, Z_wl25B, Z_wl75);  % => (256 x 1024 x 125)
 
-% Subtract the dark from each frame => Z_wlAll - Dark_9s
-for f = 1:125
-    Z_wlAll(:,:,f) = Z_wlAll(:,:,f) - Dark_9s;  % now purely photon counts
+% Subtract the dark offset from each WL frame
+for f = 1:size(Z_wlAll,3)
+    Z_wlAll(:,:,f) = Z_wlAll(:,:,f) - darkWLAvg;
 end
 
 %% FORM 5 META-FRAMES (25 frames each) => (256 x 1024 x 5)
@@ -97,7 +123,7 @@ end
 %  We'll pick a testRow in rows0 (e.g. 80) and compare "row / smooth(row) - 1"
 %  across all 5 meta-frames (Z_wlMeta(:,:,1..5)).
 
-testRow          = 80;            % pick any row in rows0
+testRow          = 85;            % pick any row in rows0
 localSmoothWin   = 50;            % smoothing for HF extraction
 offsetIncrement  = 0.05;          % vertical offset 
 colors           = lines(numMetaFrames);
@@ -176,7 +202,8 @@ OneFrame_corrected = OneFrame;
 for rr = rows0
     measRow       = OneFrame(rr,:); % raw plot of the biological data
     correctionRow = OneCF(rr,:);  % correction factor
-    OneFrame_corrected(rr,:) = measRow ./ correctionRow;
+    % OneFrame_corrected(rr,:) = measRow ./ correctionRow;
+    OneFrame_corrected(rr,:) = measRow .* correctionRow;
 end
 
 
@@ -187,30 +214,46 @@ figure(2); clf
 
 SubFig = 210;
 
-% initial image
+% initial image, only 0 mm data
 subplot(SubFig+1)
 
-% imagesc(OneFrame); colormap('gray')
-plot(OneFrame(testRow,:), 'r')
+imagesc(1:numCols, rows0, OneFrame(rows0,:)); colormap('gray')
+% plot(OneFrame(testRow,:), 'r')
 axis tight
-% title('before')
+title('0 mm spectral image, before')
 
 % final image
-% subplot(SubFig+2)
+subplot(SubFig+2)
 
 % imagesc(OneFrame_corrected); colormap('gray')
-hold on
-
-plot(OneFrame_corrected(testRow,:), 'b')
+imagesc(1:numCols, rows0, OneFrame_corrected(rows0,:)); colormap('gray')
+axis tight
+title('0 mm spectral image, after correction')
 
 % title('after')
 
 % spectra from rr
-subplot(SubFig+2)
-% figure(3); clf;
-plot(OneCF(testRow,:), 'k'); 
-axis tight
+% subplot(SubFig+2)
 
+figure(3); clf;
+imagesc(1:numCols, rows0,OneCF(rows0,:)); colormap('gray') 
+axis tight
+title('correction factors for all 0 mm rows')
+
+
+figure(4); clf
+plot(sum(OneFrame_corrected(ZerommOnly,:)), 'b');
+axis tight
+title('sum of raw 0 mm data (no aberration correction)')
+legend('corrected')
+
+figure(5); clf
+plot(sum(OneFrame(ZerommOnly,:)), 'r');
+hold on
+plot(sum(OneFrame_corrected(ZerommOnly,:)), 'b')
+axis tight
+title('sum of raw 0 mm data (no aberration correction)')
+legend('uncorrected','corrected')
 return
 
 
