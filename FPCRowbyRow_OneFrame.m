@@ -175,7 +175,7 @@ OneFrame_corrected = OneFrame;
 
 for rr = rows0
     measRow       = OneFrame(rr,:); % raw plot of the biological data
-    correctionRow = OneCF(rr,:);  % 1x1024
+    correctionRow = OneCF(rr,:);  % correction factor
     OneFrame_corrected(rr,:) = measRow ./ correctionRow;
 end
 
@@ -183,23 +183,33 @@ end
 
 %% Plot before and after
 
-figure(2)
+figure(2); clf
 
 SubFig = 210;
 
 % initial image
 subplot(SubFig+1)
-imagesc(OneFrame); colormap('gray')
-title('before')
+
+% imagesc(OneFrame); colormap('gray')
+plot(OneFrame(testRow,:), 'r')
+axis tight
+% title('before')
+
 % final image
-subplot(SubFig+2)
-imagesc(OneFrame_corrected); colormap('gray')
-title('after')
+% subplot(SubFig+2)
+
+% imagesc(OneFrame_corrected); colormap('gray')
+hold on
+
+plot(OneFrame_corrected(testRow,:), 'b')
+
+% title('after')
 
 % spectra from rr
-%subplot(SubFig+3)
-figure(3); clf;
-imagesc(OneCF); colormap('gray');
+subplot(SubFig+2)
+% figure(3); clf;
+plot(OneCF(testRow,:), 'k'); 
+axis tight
 
 return
 
