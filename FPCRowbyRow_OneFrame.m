@@ -28,6 +28,7 @@ close all
 AJBPrefix = 'C:\Users\ajber\Box\research';
 
 % white light and darkPath, 25 (or in one case 75) frames of 9 sec
+% data from 2025.03.05 
 WLdata25APath = [AJBPrefix,'\BergerLabBoneProject\Data\Sadia\05March2025\WL_25F_9s.mat'];
 WLdata25BPath = [AJBPrefix,'\BergerLabBoneProject\Data\Sadia\05March2025\WL_25F_9s_P2.mat'];
 WLdata75Path  = [AJBPrefix,'\BergerLabBoneProject\Data\Sadia\05March2025\WL_75F_9s.mat'];
@@ -39,9 +40,17 @@ DSdata25APath = [AJBPrefix, '\BergerLabBoneProject\Data\Sadia\2025-03-24\DS_25F_
 DSdata25BPath = [AJBPrefix, '\BergerLabBoneProject\Data\Sadia\2025-03-24\DS_25F_9s_P2.mat'];
 DSdata75Path  = [AJBPrefix, '\BergerLabBoneProject\Data\Sadia\2025-03-24\DS_75F_9s.mat'];
 
-% cadaver measurement and corresponding DarkPath
-measDataPath  = [AJBPrefix,'\BergerLabBoneProject\Data\Cadaver\1st_14\2024_05_15\MD24021688_T_D2P2_MM00.mat'];
-measDarkPath  = [AJBPrefix,'\BergerLabBoneProject\Data\Cadaver\1st_14\2024_05_15\darkspec.mat'];
+% cadaver measurement and corresponding DarkPath - data from 2024.05.15
+% measDataPath  = [AJBPrefix,'\BergerLabBoneProject\Data\Cadaver\1st_14\2024_05_15\MD24021688_T_D2P2_MM00.mat'];
+% measDarkPath  = [AJBPrefix,'\BergerLabBoneProject\Data\Cadaver\1st_14\2024_05_15\darkspec.mat'];
+
+% another bio measurement, taken from 2025.03.24 (same day as when the
+% WL was taken) -- this is exposed femur
+measDataPath  = [AJBPrefix,'\BergerLabBoneProject\Data\Cadaver\2nd_14\2025_03_24\MD240419105_F_I.mat'];
+measDarkPath  = [AJBPrefix,'\BergerLabBoneProject\Data\Cadaver\2nd_14\2025_03_24\darkspec.mat'];
+
+% intact data : START HERE
+
 
 % Rows to correct (0mm region)
 % rows0 = 70:92; % original "tight" guess
@@ -105,6 +114,9 @@ for f = 1:size(Z_wlAll,3)
     Z_wlAll(:,:,f) = Z_wlAll(:,:,f) - darkWLAvg;
 end
 
+%  AJB: average to get a single white-light frame
+Z_OneFrame = mean(Z_wlAll,3);
+
 %% FORM 5 META-FRAMES (25 frames each) => (256 x 1024 x 5)
 numFramesAll  = 125;
 groupSize     = 25;
@@ -123,6 +135,8 @@ end
 %  We'll pick a testRow in rows0 (e.g. 80) and compare "row / smooth(row) - 1"
 %  across all 5 meta-frames (Z_wlMeta(:,:,1..5)).
 
+
+
 testRow          = 85;            % pick any row in rows0
 localSmoothWin   = 50;            % smoothing for HF extraction
 offsetIncrement  = 0.05;          % vertical offset 
@@ -138,6 +152,11 @@ for f = 1:numMetaFrames
     % Smooth & compute ratio => row / smooth(row) ~ 1 => HF = ratio - 1
     wlSm   = smooth(wlRow, localSmoothWin).';  % ensure a 1x1024 row
     ratio  = wlRow ./ wlSm;                    % ~1 => small ripple
+    % ajb 2025.11.14 : note that here Sadia is calculating 
+    %       ratio = wlRow ./ wlSm
+    % i.e. the raw data DIVIDED by wlSm
+    %     this is the opposite convention of what I am defining in the next
+    %     section
 
     % Offset each frame's trace so we can see all 5 lines
     yOffset = offsetIncrement * (f-1);
@@ -152,17 +171,33 @@ legend('Location','bestoutside');
 axis tight;
 
 %% BUILD 3D CORRECTION FACTOR (CF), ONLY rows0 => (256x1024x5)
-smoothWindow = 80;  
+
+% keep this the same as previous segment
+% smoothWindow = 80;  
+smoothWindow = 50;
+
 CF_3D = ones(numRows, numCols, numMetaFrames);  % default is all 1's
+
+
+
+
+% AJB: I choose to define the multiplicative correction factor as 
+%         CF = wlRowSmooth / wlRow
+%      and the corresponding corrected sample measurement is defined as
+%         CorrectedSample = RawSample * (wlRowSmooth/wlRow)
+%                         = RawSample * CF
 
 for f = 1:numMetaFrames
     for rr = rows0
         wlRow = Z_wlMeta(rr,:,f);
         wlRowSmooth = smooth(wlRow, smoothWindow).';
-        % define correctionFactor = (wlRow / wlRowSmooth)
-        CF_3D(rr,:,f) = wlRow ./ wlRowSmooth;
+        % define correctionFactor = (wlRowSmooth / wlRow)
+        CF_3D(rr,:,f) = wlRowSmooth ./ wlRow;
     end
 end
+% AJB: note that the CF plots should have valleys where the sample data have peaks
+%   -- but that doesn't seem to be the case! (Nov 15) -- why not??
+% need to look at the WL plots themselves START HERE
 
 %% LOAD THE MEASUREMENT & SUBTRACT DARK => (256x1024x5)
 measStruct = load(measDataPath);
@@ -195,13 +230,46 @@ OneFrame = mean(Z_meas,3);      % mean frame of *biological data*
 
 OneCF = mean(CF_3D,3);          % mean frame of *correction factor*
 
+% show single rows of the sample, the wlRow, and the correction factor
+figure(100); clf
+mysubplot = 110;
+range = [800:1000];
+
+
+% plot biological
+subplot(mysubplot+1)
+plot( OneFrame(testRow,range) / max(OneFrame(testRow,range) ) ,'r') ;
+axis tight
+% xlim(range + 799)
+title('biological row')
+
+% plot corresponding WL row -- should have peaks where biological has them
+% subplot(mysubplot+2)
+hold on
+plot(Z_OneFrame(testRow,range) / max(Z_OneFrame(testRow,range) ),'b' );
+axis tight
+% xlim([800 1000])
+title('white light row')
+
+% plot CF - this should have troughs where the biological has peaks
+% subplot(mysubplot+3)
+plot(OneCF(testRow,range) / max(OneCF(testRow,range) ) ,'k');
+axis tight
+% xlim([800 1000])
+title('oscillations at the right of the spectrum')
+
+% legend('bio', 'WL', 'CF')
+% legend('bio', 'WL')
+
+
+
 %% APPLY CF_3D FOR rows0 ONLY
 
 OneFrame_corrected = OneFrame;
 
 for rr = rows0
     measRow       = OneFrame(rr,:); % raw plot of the biological data
-    correctionRow = OneCF(rr,:);  % correction factor
+    correctionRow = OneCF(rr,:);  % correction factor for each row
     % OneFrame_corrected(rr,:) = measRow ./ correctionRow;
     OneFrame_corrected(rr,:) = measRow .* correctionRow;
 end
@@ -214,7 +282,7 @@ figure(2); clf
 
 SubFig = 210;
 
-% initial image, only 0 mm data
+% initial image of biological data, only 0 mm data
 subplot(SubFig+1)
 
 imagesc(1:numCols, rows0, OneFrame(rows0,:)); colormap('gray')
@@ -222,7 +290,7 @@ imagesc(1:numCols, rows0, OneFrame(rows0,:)); colormap('gray')
 axis tight
 title('0 mm spectral image, before')
 
-% final image
+% final image of biological data
 subplot(SubFig+2)
 
 % imagesc(OneFrame_corrected); colormap('gray')
@@ -230,8 +298,8 @@ imagesc(1:numCols, rows0, OneFrame_corrected(rows0,:)); colormap('gray')
 axis tight
 title('0 mm spectral image, after correction')
 
-% title('after')
 
+%% show the '1' values for all rows0 
 % spectra from rr
 % subplot(SubFig+2)
 
@@ -248,9 +316,10 @@ title('sum of raw 0 mm data (no aberration correction)')
 legend('corrected')
 
 figure(5); clf
+Offset = 0.1e4; % easier to compare
 plot(sum(OneFrame(ZerommOnly,:)), 'r');
 hold on
-plot(sum(OneFrame_corrected(ZerommOnly,:)), 'b')
+plot(-1*Offset + sum(OneFrame_corrected(ZerommOnly,:)), 'b')
 axis tight
 title('sum of raw 0 mm data (no aberration correction)')
 legend('uncorrected','corrected')
