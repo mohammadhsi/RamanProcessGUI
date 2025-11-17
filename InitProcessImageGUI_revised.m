@@ -449,10 +449,6 @@ tic
     %   single frame including fluorescence and offset
     %   cosmic rays corrected
 
-    % START HERE
-  
-
-
     % There is no reason to create the 5 individual frames. 
     % But we need to provide the polynomial spectra that fit the
     % individual frames, in case the overall fluorescence is useful in the
@@ -460,10 +456,11 @@ tic
 
     % This is future work - for now we will push forward on the remaining
     % pieces, starting with fixed pattern correction and then aberration
-    % correction 
-
+    % correction  -- ajb 2025.10.26
 
     
+    %% probably can remove these comments when we are set 
+
     % ajb 2025.08.30:
     % at these rows, MaxFrame tells us which frame had the max pixel value,
     % and MaxValue tells us what the maximum value is
@@ -474,11 +471,7 @@ tic
     % which is a 262144x5 2D matrix
         % START HERE!
     
-    
-      
-
-    % START HERE! 
-    % - reshape the data (currently a 2D matrix, with each row supplying one pixel's 
+        % - reshape the data (currently a 2D matrix, with each row supplying one pixel's 
     % value at each of the frames;
     % one of those values is occasionally so high that it is replaced by
     % the mean of the other ones (thus eliminating the cosmic ray)
@@ -493,12 +486,10 @@ tic
     % - average the five frames - at this point there is no reason not to,
     % as it simply helps the signal to noise
 
-     
-
-
-
     % get these indices, and supply the Lower4Mean values at these
     % at all other indices, use the mean of all 5
+
+    % this is an older version, not vectorized
 
        % CosmicCheck(Frame,y) = AllFrames(Frame,y);
        % [fitted,putout] = anita( (CosmicCheck(Frame,y)),PolyOrder,1,px,iter);
@@ -535,17 +526,78 @@ tic
        %     end
 toc
 
+%% Remove non-photon counts
+
+%    note that we are working with the MEAN of the multiple frames, not the
+%    SUM
+%    also note that for now we are assuming -59C (and the Andor back-thinned
+%    CCD)
+
+% here t is in seconds (our data frames are 60 sec) and the DCR formula is
+% simply DarkCoeff*t + ReadoutOffset
+%  We have found DarkCoeff = 1.1131 and ReadoutOffset = 848.
+t = 60;
+DarkCoeff = 1.1131;
+ReadoutOffset = 848;
+
+% calculate the non-photon count value
+DarkCountsRemoved = DCR(t, DarkCoeff, ReadoutOffset);
+
+% Subtracting this out gives us just the photonic counts.
+
+%% Apply fixed pattern correction
+FixedPatternCorrected = FPC(ImageIn, WL);
+% WL is a matrix containing pixel rows that have fixed pattern from white
+% light
 
 
 
 end  % of each file
-   
 
-  
+AJB = 1;
+
+% end % of function RawCorrect
+
+
+%% DCR = Dark Counts Removed
+function DarkCountsRemoved = DCR(t, DarkCoeff, ReadoutOffset)
+    
+% input: ImageIn : a frame of image data
+%        t : time in seconds
+%        DarkCoeff : dark count coefficient
+%        ReadoutOffset : readout count bias
+
+DarkCountsRemoved = DarkCoeff * t + ReadoutOffset;
+
+
+
 
 %% fixed pattern correction
 
-AJB = 1;
+% ajb 2025.10.26 : including Sadia's code for generating row-level fixed
+% pattern correction
+
+% The code is 
+% ".\BergerLabBoneProject\Code\FPC White MetaFrame Approach\FPCRowbyRow_metaframes.m"
+
+% This is essential for our 0mm-offset fiber bundle, because the fixed
+% pattern is greater than the shot noise.
+
+function FixedPatternCorrection = FPC(ImageIn, WL)
+% function FixedPatternCorrection = FPC(ImageIn, WL)
+
+
+
+
+
+
+
+
+
+
+  
+
+
 
 %%%%%%%%%%%%%%%%%%
 
@@ -984,7 +1036,7 @@ BottomPixelRow = 250;
 % find the pixel that gives the max value within these ranges
 
 AnchorPixels = zeros(n,1);
-for i = 1:n,
+for i = 1:n
     pixRange = [AnchorPixelLimits(i,1):AnchorPixelLimits(i,2)];
     [val, idx] = max(neonImage(BottomPixelRow,pixRange));
     % need to add an offset of min(pixRange) - 1 to get absolute pixel values
@@ -1761,7 +1813,7 @@ while(sum((npeaklambdaold==npeaklambda) + floor((isnan(npeaklambdaold)+isnan(npe
      % Dwight Fairchild
     % This while loop reprompts if the input matrix dimensions do not match
     % the sample's matrix dimensions
-    while( ~isequal(size(npeaklambda) ,size(npeaklambdaold)));
+    while( ~isequal(size(npeaklambda) ,size(npeaklambdaold)))
         
        prompt={'Enter the peak wavelength values'};
        name='Neon Spectrum';
