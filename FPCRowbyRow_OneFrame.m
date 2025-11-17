@@ -45,11 +45,14 @@ DSdata75Path  = [AJBPrefix, '\BergerLabBoneProject\Data\Sadia\2025-03-24\DS_75F_
 % measDarkPath  = [AJBPrefix,'\BergerLabBoneProject\Data\Cadaver\1st_14\2024_05_15\darkspec.mat'];
 
 % another bio measurement, taken from 2025.03.24 (same day as when the
-% WL was taken) -- this is exposed femur
-measDataPath  = [AJBPrefix,'\BergerLabBoneProject\Data\Cadaver\2nd_14\2025_03_24\MD240419105_F_I.mat'];
-measDarkPath  = [AJBPrefix,'\BergerLabBoneProject\Data\Cadaver\2nd_14\2025_03_24\darkspec.mat'];
+% WL was taken) -- this is an exposed femur
+% measDataPath  = [AJBPrefix,'\BergerLabBoneProject\Data\Cadaver\2nd_14\2025_03_24\MD240419105_F_I.mat'];
+% measDarkPath  = [AJBPrefix,'\BergerLabBoneProject\Data\Cadaver\2nd_14\2025_03_24\darkspec.mat'];
 
-% intact data : START HERE
+% data from 2025.04.09 [closest cadaver to the WL data; I assume it's intact] 
+measDataPath = [AJBPrefix,'\BergerLabBoneProject\Data\Cadaver\2nd_14\2025_04_09\MD24041998_T_D2P1_MM00.mat'];
+measDarkPath = [AJBPrefix,'\BergerLabBoneProject\Data\Cadaver\2nd_14\2025_04_09\darkspec.mat'];
+
 
 
 % Rows to correct (0mm region)
