@@ -1,2 +1,4 @@
 # ignoring autosaves
 *.asv
+# ignore .mat files
+*.mat
