@@ -247,12 +247,12 @@ function RC = RawCorrect(FileDirInfo,WhichFiles)
 All = 0;
 Samples = 1;
 Calib = 2;
+OneSample = 3;  % ~specind + first sample: for testing
 
 filedir = get(FileDirInfo,'string');
 s = what(filedir); allfiles = s.mat;
 
-% three cases: All, Samples, or 
-% Calib
+% four cases: All, Samples, Calib, or OneSample
 
 specind = logical(1 - ((1-cellfun('isempty', regexp(allfiles,'throughput'))) + ...
             (1-cellfun('isempty', regexp(allfiles,'neon'))) + ...
@@ -266,6 +266,8 @@ switch WhichFiles
         list = allfiles(specind);
     case Calib
         list = allfiles(~specind);
+    case OneSample
+        list = allfiles(logical(~specind + specind(1) ));
 end
 % final set of files accessed    
 RC = list;
@@ -277,9 +279,9 @@ myFrames(1:sz) = struct('RawData', 0);
 % for each accessed file:
 
 % when actually processing all data:
-    % for ijk = 1:sz
+   for ijk = 1:sz
 % when testing, using just the first file: 
-    for ijk = 1
+    % for ijk = 1
    
    % first step: convert 2D file to multiple frames 
    % myFiles(ijk) = load([filedir '/' num2str(cell2mat(RC(ijk)))]);
@@ -381,8 +383,6 @@ tic
     % this gets it the right way: each row represents one (x,y) pixel's
     % values from each of the NFrames
 
-
-
     [sorted,IDX] = sort(fittedLong,2);  % each row sorted
     MaxFrame = IDX(:,end);  % which frame has the max pixel value for that (x,y) - confirmed correct
     
@@ -465,105 +465,143 @@ tic
     
     %% probably can remove these comments when we are set 
 
-    % ajb 2025.08.30:
-    % at these rows, MaxFrame tells us which frame had the max pixel value,
-    % and MaxValue tells us what the maximum value is
-
-    % We need to replace the cosmic value (by definition the largest)
-    % with the average of the other frames' value (LowerMean) in the row.
-    % This is done using fittedLong (see definition of MaxValue above),
-    % which is a 262144x5 2D matrix
-        % START HERE!
-    
-        % - reshape the data (currently a 2D matrix, with each row supplying one pixel's 
-    % value at each of the frames;
-    % one of those values is occasionally so high that it is replaced by
-    % the mean of the other ones (thus eliminating the cosmic ray)
-
-        % use permute to reshape AllFramesMean to a 5x
-
-    % - further reshape the data to return to single image (here, 1280 rows)?
-    % - return polynomial to each of the rows (i.e. the only thing
-    % permanent here is the cosmic ray correction)
-    % - then once again reshape forwards to get the five frame, sans
-    % cosmics
-    % - average the five frames - at this point there is no reason not to,
-    % as it simply helps the signal to noise
-
-    % get these indices, and supply the Lower4Mean values at these
-    % at all other indices, use the mean of all 5
-
-    % this is an older version, not vectorized
-
-       % CosmicCheck(Frame,y) = AllFrames(Frame,y);
-       % [fitted,putout] = anita( (CosmicCheck(Frame,y)),PolyOrder,1,px,iter);
-       % Resid(Frame,y) = fitted;     % the residuals
-       % Polynomial(Frame,y) = putout; % for adding back the polynomial
-       % 
-       % 
-       % % ajb 2025.08.04 : confirmed that this plots five frames that
-       % % overlap closely and look like residuals
-       % 
-       % % for each row, go pixel by pixel in the Resid spectrum to see if the largest
-       % % value is an outlier 
-       % % formally: determine if the largest value exceeds $\mu + n\sigma$;
-       % % if so, replace it with $\mu$
-       % for Pix = 1:px
-       %     AllFramesOnePixel= Resid(:,Pix);
-       %     [sorted,IDX] = sort(AllFramesOnePixel);
-       %     % the next line tells us which Frame has the largest pixel value
-       %     MaxFrame = IDX(end);
-       %     % prove this gives the max value
-       %     MaxValue = AllFramesOnePixel(MaxFrame);
-       % 
-       %     % remaining values: don't need to keep track of their locations
-       %     Lower = sorted(1:NFrames-1);  % all but the highest value
-       % 
-       %     % computation of mean and std of the other values
-       %     LowerMean = mean(Lower);
-       %     LowerStd = std(Lower);          
-       % 
-       %     if ((MaxValue - LowerMean) > StdFactor * LowerStd)
-       %     % here's where the cosmic ray correction would then happen
-       %         Resid(MaxFrame,Pix) = LowerMean; 
-       %         % This needs to be put into the myFrames array
-       %     end
+    % % ajb 2025.08.30:
+    % % at these rows, MaxFrame tells us which frame had the max pixel value,
+    % % and MaxValue tells us what the maximum value is
+    % 
+    % % We need to replace the cosmic value (by definition the largest)
+    % % with the average of the other frames' value (LowerMean) in the row.
+    % % This is done using fittedLong (see definition of MaxValue above),
+    % % which is a 262144x5 2D matrix
+    %     % START HERE!
+    % 
+    %     % - reshape the data (currently a 2D matrix, with each row supplying one pixel's 
+    % % value at each of the frames;
+    % % one of those values is occasionally so high that it is replaced by
+    % % the mean of the other ones (thus eliminating the cosmic ray)
+    % 
+    %     % use permute to reshape AllFramesMean to a 5x
+    % 
+    % % - further reshape the data to return to single image (here, 1280 rows)?
+    % % - return polynomial to each of the rows (i.e. the only thing
+    % % permanent here is the cosmic ray correction)
+    % % - then once again reshape forwards to get the five frame, sans
+    % % cosmics
+    % % - average the five frames - at this point there is no reason not to,
+    % % as it simply helps the signal to noise
+    % 
+    % % get these indices, and supply the Lower4Mean values at these
+    % % at all other indices, use the mean of all 5
+    % 
+    % % this is an older version, not vectorized
+    % 
+    %    % CosmicCheck(Frame,y) = AllFrames(Frame,y);
+    %    % [fitted,putout] = anita( (CosmicCheck(Frame,y)),PolyOrder,1,px,iter);
+    %    % Resid(Frame,y) = fitted;     % the residuals
+    %    % Polynomial(Frame,y) = putout; % for adding back the polynomial
+    %    % 
+    %    % 
+    %    % % ajb 2025.08.04 : confirmed that this plots five frames that
+    %    % % overlap closely and look like residuals
+    %    % 
+    %    % % for each row, go pixel by pixel in the Resid spectrum to see if the largest
+    %    % % value is an outlier 
+    %    % % formally: determine if the largest value exceeds $\mu + n\sigma$;
+    %    % % if so, replace it with $\mu$
+    %    % for Pix = 1:px
+    %    %     AllFramesOnePixel= Resid(:,Pix);
+    %    %     [sorted,IDX] = sort(AllFramesOnePixel);
+    %    %     % the next line tells us which Frame has the largest pixel value
+    %    %     MaxFrame = IDX(end);
+    %    %     % prove this gives the max value
+    %    %     MaxValue = AllFramesOnePixel(MaxFrame);
+    %    % 
+    %    %     % remaining values: don't need to keep track of their locations
+    %    %     Lower = sorted(1:NFrames-1);  % all but the highest value
+    %    % 
+    %    %     % computation of mean and std of the other values
+    %    %     LowerMean = mean(Lower);
+    %    %     LowerStd = std(Lower);          
+    %    % 
+    %    %     if ((MaxValue - LowerMean) > StdFactor * LowerStd)
+    %    %     % here's where the cosmic ray correction would then happen
+    %    %         Resid(MaxFrame,Pix) = LowerMean; 
+    %    %         % This needs to be put into the myFrames array
+    %    %     end
 toc
 
-%% Remove non-photon counts from the sample image
+%% Remove non-photon counts from calibration and sample images as needed
 
 %    note that we are working with the MEAN of the multiple frames, not the
 %    SUM
 %    also note that for now we are assuming -59C (and the Andor back-thinned
 %    CCD)
 
-% here t is in seconds (our data frames are 60 sec) and the DCR formula is
+% here t is in seconds and the Dark Counts Removed formula is
 % simply DarkCoeff*t + ReadoutOffset
+
+% single-frame times, in seconds, for the various files
+% darkspec, darkspec_cali, neon, throughput, tylenol, whitelamp
+CalibTimes = [0, 0, 0, 60, 0, 9]; 
+% throughput time is currently a placeholder!  -- ajb 2025.11.21
+
+SpecimenTime = 60;      % always our single frame time for now; could change
+
+switch WhichFiles
+    case Calib % just the calibration files
+        % order: throughput, neon, tylenol, whitelamp
+        Times = CalibTimes(ijk);
+    case Samples
+        Times = SpecimenTime;
+    case OneSample
+        Times = SpecimenTime;
+end     % not planning to run all data at once anymore
+      
+
 %  We have found DarkCoeff = 1.1131 and ReadoutOffset = 848.
-t = 60;
+% t = 60;
 DarkCoeff = 1.1131;
 ReadoutOffset = 848;
 
 % calculate the non-photon count value
-DarkCountsRemoved = DCR(t, DarkCoeff, ReadoutOffset);
+DarkCountsRemoved = DCR(Times, DarkCoeff, ReadoutOffset);
 
 DarkCorrected = CosmicCorrectedImage - DarkCountsRemoved;
 
+figure(ijk); cla; imagesc(DarkCorrected)
 % Subtracting this out gives us just the photonic counts.
 
-%% Apply fixed pattern correction
+% first two are dark-field; we can ignore them
+% third image is full field spots: neon
+% fourth looks smooth but only in 0mm: throughput
+% fifth is spiky and 0mm: tylenol
+% sixth is smooth and full-field: whitelight
 
-load FPC_Variables_ForV2.mat;
-% ajb: for the time being, these are fixed, just to test the flow
-%   eventually this will be merged with FPCRowbyRow_OneFrame.m instead
+myFrames(ijk).RawData = DarkCorrected;
 
-% variables should be OneFrame and OneCF
 
-% correct the data to remove fixed pattern from the detector
-FixedPatternCorrected = FPC(OneFrame, OneCF);
+
 
 
 end  % of each file
+
+% at this point, we have myFrames.RawData
+% The next step is to apply fixed pattern 
+
+%% Apply fixed pattern correction
+
+% load FPC_Variables_ForV2.mat;
+% ajb: for the time being, these are fixed, just to test the flow
+%   eventually this will be merged with FPCRowbyRow_OneFrame.m instead
+
+% best way: run once for all calibration, then once again for either one
+% specimen (=4) or for all (=2), depending upon whether testing or running
+% fully
+
+% correct the specimen data to remove fixed pattern from the detector
+
+% input variables should be OneFrame and OneCF
+FixedPatternCorrected = FPC(OneFrame, OneCF);
 
 AJB = 1;
 
@@ -1438,8 +1476,9 @@ xlabel('X (pixels)');
 ylabel('Y (pixels)');
 colorbar;
 
-% end of new block of aberration correction
 
+AJB = 1;
+% end of new block of aberration correction
 
 
 
@@ -1466,9 +1505,17 @@ function initialprocess_Callback(hObject, eventdata, handles)
 % need to supply the location of the file directory
 RC_FileDir = handles.FileDirectory;
 % WhichFiles = 0;  % i.e. all files, both Samples and Calib
-WhichFiles = 1;  % i.e. Samples
+% WhichFiles = 1;  % i.e. Samples
 % WhichFiles = 2;  % i.e. Calib
-Test = RawCorrect(RC_FileDir,WhichFiles);
+% WhichFiles = 3; % i.e. just 1st Sample
+AllCalibFiles = 2;
+AllSampleFiles = 1;
+OneSampleFile = 3;
+
+% first, just calibration files (dark included?)
+CalibData = RawCorrect(RC_FileDir,AllCalibFiles);    
+% next, just one sample file
+SampleData = RawCorrect(RC_FileDir,OneSampleFile);
 
 %% aberration correction function
 
