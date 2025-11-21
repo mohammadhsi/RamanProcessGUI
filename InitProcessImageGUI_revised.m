@@ -275,7 +275,11 @@ sz = size(RC,1);
 myFrames(1:sz) = struct('RawData', 0);
 
 % for each accessed file:
-for ijk = 1:sz
+
+% when actually processing all data:
+    % for ijk = 1:sz
+% when testing, using just the first file: 
+    for ijk = 1
    
    % first step: convert 2D file to multiple frames 
    % myFiles(ijk) = load([filedir '/' num2str(cell2mat(RC(ijk)))]);
@@ -354,7 +358,7 @@ tic
     
     % decode which 5 frames are the ones to compare
     
-    figure(2); cla
+%    figure(2); cla
     
     % this next line generates an image whose orientation of fiber
     % rows looks like a single frame
@@ -442,8 +446,8 @@ tic
     % (both are the means of all frames, so the resulting data is just one
     % image frame)
     CosmicCorrectedImage = ManyCorrectedSpectra + MeanPutout;
-    figure(100); cla
-    imagesc(CosmicCorrectedImage)
+%    figure(100); cla
+%  imagesc(CosmicCorrectedImage)
     
     % visually this looks right:
     %   single frame including fluorescence and offset
@@ -526,7 +530,7 @@ tic
        %     end
 toc
 
-%% Remove non-photon counts
+%% Remove non-photon counts from the sample image
 
 %    note that we are working with the MEAN of the multiple frames, not the
 %    SUM
@@ -543,32 +547,44 @@ ReadoutOffset = 848;
 % calculate the non-photon count value
 DarkCountsRemoved = DCR(t, DarkCoeff, ReadoutOffset);
 
+DarkCorrected = CosmicCorrectedImage - DarkCountsRemoved;
+
 % Subtracting this out gives us just the photonic counts.
 
 %% Apply fixed pattern correction
-FixedPatternCorrected = FPC(ImageIn, WL);
-% WL is a matrix containing pixel rows that have fixed pattern from white
-% light
 
+load FPC_Variables_ForV2.mat;
+% ajb: for the time being, these are fixed, just to test the flow
+%   eventually this will be merged with FPCRowbyRow_OneFrame.m instead
+
+% variables should be OneFrame and OneCF
+
+% correct the data to remove fixed pattern from the detector
+FixedPatternCorrected = FPC(OneFrame, OneCF);
 
 
 end  % of each file
 
 AJB = 1;
 
-% end % of function RawCorrect
+% end of function RawCorrect
 
 
 %% DCR = Dark Counts Removed
 function DarkCountsRemoved = DCR(t, DarkCoeff, ReadoutOffset)
-    
-% input: ImageIn : a frame of image data
+% output is a scalar value
+% our experimental observation is that the dark counts are statistically
+% the same across all pixels, so just use a single value for all pixels to
+% reduce noise
+
+% inputs: 
 %        t : time in seconds
 %        DarkCoeff : dark count coefficient
 %        ReadoutOffset : readout count bias
 
 DarkCountsRemoved = DarkCoeff * t + ReadoutOffset;
 
+% end of DCR function
 
 
 
@@ -583,14 +599,846 @@ DarkCountsRemoved = DarkCoeff * t + ReadoutOffset;
 % This is essential for our 0mm-offset fiber bundle, because the fixed
 % pattern is greater than the shot noise.
 
-function FixedPatternCorrection = FPC(ImageIn, WL)
-% function FixedPatternCorrection = FPC(ImageIn, WL)
+function FixedPatternCorrection = FPC(ImageIn, CF)
+% function FixedPatternCorrection = FPC(ImageIn, CF)
+
+% ImageIn = the averaged frame of biological data (background-corrected)
+% CF = the averaged frame of the correction factor (background-corrected)
+%
+% The output should be the corrected biological data, i.e.
+%   ImageIn * CF
+FixedPatternCorrection = ImageIn .* CF;
+
+% end of FPC function
+
+
+%% Aberration function
+
+% Implement the aberrration code here
+
+function AberrationCorrect = AbCorr()
+
+%% ========================================================================
+% STEP 1: LOAD RAW DATA
+% Load white lamp and neon lamp spectral data 
+% ========================================================================
+% dataDir = 'C:\Users\Sadia\Desktop\Data Files\Neonasdata\polyorderneon = 3';
+
+
+% using a dialog popup - ajb
+% dataDir = uigetdir('C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12');
+
+% hardwired when needed:
+% dataDir =  'C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12';
+dataDir = 'C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2nd_14\2025_04_09';
+
+whiteLampFile = fullfile(dataDir, 'whitelamp.mat');
+neonFile = fullfile(dataDir, 'neon.mat');
+
+% Load white lamp data and extract the spectrum.
+load(whiteLampFile, 'RawData'); 
+whiteLampData = RawData.Spectrum;
+
+% Load neon lamp data and extract the spectrum.
+load(neonFile, 'RawData'); 
+neonData = RawData.Spectrum; 
+
+% Restrict to the first 256 rows.
+%  ? is this about using only the first frame rather than all frames? - ajb 2025.06.16
+% and eventually we should use *all five frames* for cosmic ray reasons
+Range = 256;
+whiteLampImage = whiteLampData(1:Range, :); 
+neonImage = neonData(1:Range, :);
+
+% Quick visualization of the raw neon image.
+figure(1)
+imagesc(neonImage)
+title('Raw Neon Image');
+
+% Get image dimensions.
+[Ny, Nx] = size(whiteLampImage);
+fprintf('Image dimensions: %d x %d\n', Ny, Nx); 
+
+%% ========================================================================
+% STEP 2: DETECT FIBER POSITIONS (Y-axis horizontal stripes)
+% Here we collapse the white lamp image along the columns and use peak 
+% detection to determine the fiber rows (which we trust as the ideal Y).
+% ========================================================================
+disp('Detecting fiber positions...');
+whiteLampSum = sum(whiteLampImage, 2);  % Sum each row
+dynamicThreshold = mean(whiteLampSum) + 0.2 * std(whiteLampSum);
+expected_spacing = 3;  % Minimum spacing in rows
+
+% Find peaks in the summed profile.
+[pks, locs] = findpeaks(whiteLampSum, 'MinPeakHeight', dynamicThreshold, 'MinPeakDistance', expected_spacing);
+fprintf('Total detected fibers: %d\n', length(locs));
+
+% Display detected fiber rows.
+figure(2);
+imshow(whiteLampImage, []);     % this is the raw image
+hold on;
+for i = 1:length(locs)  % these are simply horizontal lines, i.e. ideal lines
+    row = locs(i);
+    line([1 Nx], [row row], 'Color', 'r', 'LineWidth', 1);
+end
+title('Detected Fiber Positions');
+hold off;
+
+%% ========================================================================
+% STEP 3: IDENTIFY NEON COLUMNS & MATCH TO WAVELENGTHS
+% Load the reference wavelengths from the process structure and match the 
+% expected neon wavelengths to pixel columns. Then display the neon image 
+% with vertical markers.
+% ========================================================================
+
+% need an initprocess-created file rather than raw, to get wavelengths
+%  -ajb 2025.06.22 : this gets us the process.wavelength structure that currently is generated by
+%  the *old* initprocess method (via the GUI, mapping from pixel spacing to wavelength spacing)
+
+% === ajb: Commenting this out, replacing with different approach
+% load(fullfile(dataDir, 'initprocess', 'WV24041682_E_D2P1_MD05.mat'), 'process');
+% wavelengths = process.wavelength;  % Reference wavelength scale.
+
+% -ajb : the process.wavelength values are not spaced linearly. The command >> plot(wavelengths)
+% makes this visually clear: the x axis is pixels, and the data plot is not a straight line (y
+% spacings get smaller at the larger pixel values)
+
+% -ajb 2025.06.23 : New idea is to stay in PIXEL mode for all of the aberration corrections
+
+% List of all calibrated neon wavelengths (in nm).
+AllPeaklambda = [849.54, 859.13, 865.44, 878.06, 885.39, 886.55, 891.95, 914.87, 920.18, 930.09, 932.65, 942.54, 953.42, 954.74, 966.54]';
+pixelPositions = zeros(size(AllPeaklambda));  % Preallocate for pixel columns
+
+% ajb: eliminate a few that are too close to a brighter peak and therefore
+% harder to find via a window search
+% These are positions 6, 11, and 14 in the npeaklambda variable as of this
+% line
+FullList = 1:size(AllPeaklambda);
+Eliminate = [6, 11, 14];
+% create the list of wavelengths that will be used 
+npeaklambda = AllPeaklambda(setdiff(FullList,Eliminate));
+
+
+%% testing a new way to locate all of the peaks 
+% Anchoring to the first and last peak pixels (of the lowest rows) by
+% knowing a reasonable pixel range within which no other peak will be
+% close.
+
+% === ajb: define pixel ranges for the first and last peaks (and maybe more)
+
+% Basic idea: define ranges within which there is no other peak present; this
+% allows the code to find the right peaks. 
+
+% Choosing a simple linear fit between pixel and wavelenth at 849 and 966
+% was slightly too far off in wavelength. At least one more control is
+% needed in order to sufficiently accurate wavelength to ensure the correct
+% peak is chosen.
+
+% Table of pixels and wavelengths for controls, using bottom row of neon
+% images
+% ControlWL = npeaklambda([1, 7, 8, 15]);    % full list, based upon literature
+% alternative with 6, 11, 14 WL skipped
+ControlWL = npeaklambda([1, 6, 7, 12]);    % reduced list, based upon literature
+
+ControlPix = [6, 272, 420, 774];            % based upon neon image
+
+% trying to use the most isolated peaks, but may need to tailor the range
+% of pixels for each one (+/- value)
+ControlPixWidth = [5, 12, 15, 25];
+
+% if 0 % just keeping for now
+% % first peak: 849.54 - currently (June 2025) occurs near pixel 6 of the lowest rows (~255)
+% FirstPeakRange = [1,12];  
+% % i.e. no other peak is close to this - range is this close only because
+% % it's so close to the left edge 
+% 
+% % last peak: 966.54 - currently occurs near pixel 774
+% LastPeakRange = [750,800]; % no other peak is within 25 pixels of 774
+% 
+% end
+
+% array: each row contains the first and last index values in the range
+n = length(ControlPix);
+AnchorPixelLimits = zeros(n,2); % min and max value
+for i = 1:n
+    Width = ControlPixWidth(i);
+    AnchorPixelLimits(i,:) = ControlPix(i) + [-Width, Width];
+end
+
+% pixel range is the number of columns in raw mode: should be 1024
+Npixels = size(neonImage,2);
+Pixels = 1:Npixels;
+% choose pixel row to be near the bottom
+BottomPixelRow = 250;
+
+% find the pixels corresponding to the anchor peaks (first and last
+% currently)
+% nAnchor = npeaklambda([1,end]);  % essential to use the neon data
+
+% find the pixel that gives the max value within these ranges
+
+AnchorPixels = zeros(n,1);
+for i = 1:n
+    pixRange = [AnchorPixelLimits(i,1):AnchorPixelLimits(i,2)];
+    [val, idx] = max(neonImage(BottomPixelRow,pixRange));
+    % need to add an offset of min(pixRange) - 1 to get absolute pixel values
+    AnchorPixels(i) = min(pixRange) - 1 + idx;
+end
+
+
+% cubic spline that fits four control wavelengths, supplying a full vector
+% of estimated wavelengths
+estWL = spline(ControlPix, ControlWL, Pixels); 
+% ajb note: although the fit will not be that good past the 966 neon peak,
+% that doesn't matter because the only goal for now is to align the neon
+% peaks.
+
+% === check ability to fit index for *all* calibrated neon peaks
+
+for i = 1:length(npeaklambda)
+    TestWL = npeaklambda(i);
+    % locate the largest pixel index whose value is nonzero; this
+    % specifies the index of the chosen neon peak
+    idx = find(estWL<TestWL,1,"last");
+    % choose a region of +- N pixels around this estimated wavelength
+    Space = 4; 
+        % can't go lower than that for the first pixel; maybe make others
+        % wider
+    TestRange = [-Space:Space] + idx;
+    % find the pixel associated with the maximum value
+    [val, idx2] = max(neonImage(BottomPixelRow,TestRange));
+    AbsolutePixel(i) = min(TestRange) - 1 + idx2;
+end
+
+% hand-checked max peak values for all neon peaks at BottomPixelRow row
+% ajb: done on 2025.06.26
+NeonMaxPixel = [6,65,105,184,230,237,272,420,455,520,538,605,680,689,774];
+% ajb note 2025.07.15: a few of these are NOT used as control wavelengths
+% because they are too close to other (stronger) wavelengths. This doesn't
+% affect downstream code, but it makes the figure immediately below
+% incorrect. For that reason I will comment it out for now and perhaps
+% delete it later.
+
+
+% plot the two values next to each other
+
+% figure(3)
+% plot(NeonMaxPixel, 0.1, 'ko');
+% hold on
+% plot(AbsolutePixel, -0.1, 'ro');
+% legend('hand-determined', 'algorithm estimated')
+% Height = 1;
+% ylim([-Height Height])
+% xlabel('pixel index')
+
+% Result: the hand-picked and automated results are mostly equal,
+% occasionally differing by a single pixel. 
+% In all cases the correct neon
+% peak was chosen, even though there were only four control wavelengths.
+
+% figure
+% plot(TestRange,neonImage(BottomPixelRow,TestRange))
+% title('quick plot of peaks vs. pixels using spline calibration')
+% xlabel('pixel')
+% ylabel('signal level (neon)')
 
 
 
+% === ajb: all aberration will now be done before doing wavelength calibration
+% For each expected wavelength, find the closest match in the wavelength array.
+% for i = 1:length(npeaklambda)
+%     [~, idx] = min(abs(wavelengths - npeaklambda(i)));
+%     pixelPositions(i) = idx;
+% end
+
+% === This image isn't needed; we will deal with wavelength later - ajb 2025.06.23
+% Display the neon image with vertical markers
+
+% figure(3);
+% imagesc(neonImage);
+% set(gcf, 'Color', 'w');   % White figure background
+% axis image;
+% hold on;
+% for i = 1:length(pixelPositions)
+%     col = pixelPositions(i);
+%     % Draw a vertical red line at the detected neon column.
+%     line([col col], [1 Ny], 'Color', 'r', 'LineWidth', 2);
+%     % Label the line with the corresponding wavelength.
+%     text(col + 5, Ny/2, num2str(npeaklambda(i)), 'Color', 'yellow', ...
+%          'Rotation', 90, 'FontWeight', 'bold', 'FontSize', 10);
+% end
+% xlabel('Neon Spot Column (from bottom row)');
+% ylabel('Fiber Row');
+% title('Matched Neon Columns with Wavelengths');
+% set(gca, 'XTick', pixelPositions, 'XTickLabel', num2str(npeaklambda, '%.2f'));
+% hold off;
+
+%% ========================================================================
+% STEP 4: COMBINE & ALIGN CONTROL POINTS
+% Create a grid of control points by pairing each detected neon column 
+% with each fiber row. The ideal control point for a given neon line is 
+% (idealX, fiberRow) where idealX comes from the wavelength lookup.
+% ========================================================================
+
+detectedFiberPositions = locs;      % Y positions (from white lamp)
+% ajb note: the Y positions are currently confined to be integers; doesn't have to stay that way
+
+
+% ajb : === updated version of neon columns
+%
+% we are now using pixels taken from revised Step 3 (see above), using the
+% variable AbsolutePixel:
+detectedNeonColumns = AbsolutePixel;
+% since pixelPositions is used downstream, redefine this
+% variable to be the same as AbsolutePixel as well
+V1pixelPositions = pixelPositions;
+pixelPositions = AbsolutePixel; % X positions (locating neon wavelengths)
+% === all subsequent comments about "wavelength lookup" now relate to Step
+% 3's "AbsolutePixel" variable
+
+% Create a grid of *ideal* control points.
+[gridX, gridY] = meshgrid(detectedNeonColumns, detectedFiberPositions);
+combinedControlPoints = [gridX(:), gridY(:)];
+
+% For visual verification, display the control points on the neon image.
+figure(4)
+ 
+% turning off the imshow so as to see the control points better
+imshow(neonImage, []); 
+hold on; 
+for i = 1:size(combinedControlPoints, 1)
+    x = combinedControlPoints(i, 1);
+    y = combinedControlPoints(i, 2);
+    plot(x, y, 'go', 'MarkerSize', 1, 'LineWidth', 0.5);
+end 
+title('Combined Control Points on Neon Image');
+axis fill
+axis ij
+hold off;
+
+%% ========================================================================
+% STEP 5: STRAIGHTEN NEON COLUMNS WITH DATA-DRIVEN 2D INTERSECTION
+%
+% Goal:
+%  For each neon column (each expected wavelength), we determine the 
+%  refined (actualX, actualY) control points from the data without relying 
+%  solely on the fixed ideal X.
+%
+% Process for each fiber (each ideal Y from white lamp detection):
+%  1. Define the ideal control point as [selectedColumn, idealY] where:
+%       - selectedColumn is from the wavelength lookup.
+%       - idealY is from the white-lamp detected fiber.
+%
+%  2. In a vertical window (±verticalSearchHalf rows around idealY), loop 
+%     over candidate rows. For each candidate row:
+%       a. Use a horizontal search window (±searchWin pixels around selectedColumn)
+%          to locate the brightest pixel.
+%       b. In a refined window (±halfWin pixels around that brightest pixel),
+%          compute the weighted (sub-pixel) X centroid.
+%       c. Save the candidate row value (Y) and the computed X centroid.
+
+  % ajb 2025.06.21: By wavelenth definition from literature, the Y value is assigned. How fine do we
+  % make the X grid for defining this? 
+  
+
+%
+%  3. From all candidates in the vertical window, compute the median of the
+%     candidate Y's and the median of the candidate X centroids. These medians 
+%     are taken as the refined (actualX, actualY) control point.
+%
+%  4. Compute shifts:
+%         dx = idealX - refined_actualX
+%         dy = idealY - refined_actualY
+%
+% These control points (and shifts) will later be used for the global 2D warp.
+% ========================================================================
+
+% Save the original neon image (unchanged) for reference.
+originalNeonImage = neonImage;
+
+% Parameters for horizontal centroid detection.
+halfWin = 8;           % Refined (sub-pixel) window half-width in X.
+searchWin = 15;        % Initial horizontal search window half-width in X.
+% ajb : Perhaps one or both of these windows is too large. I used a smaller
+% window of Space = 4 in Step 3 and confirmed that the correct neon WL was
+% grabbed.
+
+% Try using that narrower value
+% halfWin = Space;
+% searchWin = Space;
+
+
+% Parameter for vertical search (to refine Y).
+verticalSearchHalf = 3; % Vertical window: ±3 rows around the ideal Y.
+
+% (Optional) Define the width of the band for later interpolation (not needed for
+% control point extraction itself).
+colBandHalfWidth = 10; % Used in later 2D re-sampling, kept here for clarity.
+
+% Create a copy for storing the corrected result.
+% (This variable will later be used in global correction, so we keep it separate.)
+adjustedNeonImage = originalNeonImage;
+
+% Preallocate cell arrays for saving control points for each neon column
+% (for debugging/verification).
+allActualControlPoints = cell(length(pixelPositions), 1);
+allIdealControlPoints  = cell(length(pixelPositions), 1);
+
+% Loop over each neon column (i.e., each expected wavelength).
+for k = 1:length(pixelPositions)
+    % Get the ideal X for this neon column (from the wavelength lookup).
+    selectedColumn = pixelPositions(k);
+    
+    % Number of fibers (rows) from white lamp detection.
+    numFibers = length(detectedFiberPositions);
+    
+    % Preallocate arrays to store control points for each fiber.
+    actualControlPoints = zeros(numFibers, 2);  % Will store [refined_actualX, refined_actualY]
+    idealControlPoints  = zeros(numFibers, 2);   % Defined as [selectedColumn, idealY]
+    
+    % Process each fiber (each ideal Y).
+    for i = 1:numFibers
+        % The ideal Y is given by the white lamp (detected fiber row).
+        idealY = detectedFiberPositions(i);
+        % The ideal control point is fixed: [selectedColumn, idealY].
+        idealControlPoints(i,:) = [selectedColumn, idealY];
+        
+        % Define the vertical search window around this ideal Y.
+        yMin_search = max(1, idealY - verticalSearchHalf);
+        yMax_search = min(Ny, idealY + verticalSearchHalf);
+        candidateRows = yMin_search:yMax_search;
+        
+        % Initialize arrays to collect candidate data.
+        candidateYs = [];         % Will store candidate row indices.
+        candidateCentroids = [];  % Will store computed X centroids for each candidate.
+        
+        % Loop over each candidate row in the vertical window.
+        for r = candidateRows
+            % Extract the intensity profile for row r.
+            rowProfile = originalNeonImage(r, :);
+            
+            % Define a horizontal search window around selectedColumn.
+            xMin_search = max(1, selectedColumn - searchWin);
+            xMax_search = min(Nx, selectedColumn + searchWin);
+            segment = rowProfile(xMin_search:xMax_search);
+            
+            % Find the brightest pixel within this horizontal segment.
+            [~, relMaxIdx] = max(segment);
+            brightestPixelIdx = xMin_search + relMaxIdx - 1;
+            
+            % Define a refined horizontal window around the brightest pixel.
+            xMin = max(1, brightestPixelIdx - halfWin);
+            xMax = min(Nx, brightestPixelIdx + halfWin);
+            xWindow = xMin:xMax;
+            windowIntensities = rowProfile(xWindow);
+            % ajb 2025.06.21: could this be refined to get a Gaussian fit (for instance) to get a
+            % sub-pixel value for the Y?
+            
+            % Compute the weighted (sub-pixel) centroid for X.
+            if sum(windowIntensities) > 0
+                centroidXCandidate = sum(xWindow .* windowIntensities) / sum(windowIntensities);
+            else
+                centroidXCandidate = brightestPixelIdx;
+            end
+            
+            % Save the candidate row and its computed X centroid.
+            candidateYs(end+1) = r;
+            candidateCentroids(end+1) = centroidXCandidate;
+        end
+        
+        % Compute the median of candidate Y's and candidate X centroids.
+        % This median is our data-driven estimate of the control point.
+
+        % ajb - why is refined Y taken as an integer while X is sub-pixel? - 2025.06.21
+        refinedY = round(median(candidateYs));   % Y is taken as an integer.
+        refinedX = median(candidateCentroids);     % X can be sub-pixel.
+        
+        % Store the refined (actual) control point for this fiber.
+        actualControlPoints(i,:) = [refinedX, refinedY];
+    end
+    
+    % Save the control points (optional for later visualization).
+    allActualControlPoints{k} = actualControlPoints;
+    allIdealControlPoints{k}  = idealControlPoints;
+    
+    % Compute the shifts between the ideal and actual control points.
+    % These will be used later for the global 2D correction.
+    dx = idealControlPoints(:,1) - actualControlPoints(:,1); % Horizontal shifts.
+    dy = idealControlPoints(:,2) - actualControlPoints(:,2); % Vertical shifts.
+    
+    % Here we store the shifts for each neon column for later global correction.
+    % (We keep them in allIdealControlPoints and allActualControlPoints already.)
+    
+end
+
+
+%% ========================================================================
+% STEP 6: GLOBAL 2D CORRECTION
+%
+% In the previous steps, we computed refined (actualX, actualY) control points
+% for each neon line (for each fiber) and obtained dx and dy shifts (where:
+%   dx = idealX - actualX
+%   dy = idealY - actualY).
+%
+% Instead of applying interp2 piecewise (i.e., only on narrow bands around the 
+% neon columns), we now combine the information from all neon columns to get 
+% a global shift for each fiber. We then interpolate these shifts to every row 
+% of the image and apply a global 2D warp using interp2.
+% ========================================================================
+
+% --- Combine control point shifts across all neon columns ---
+numFibers = length(detectedFiberPositions);  % number of fiber rows (ideal Y's)
+numColumns = length(pixelPositions);           % number of neon lines
+
+% Preallocate matrices to store X and Y values for each fiber and each neon column.
+All_actualCP_X = zeros(numFibers, numColumns);
+All_actualCP_Y = zeros(numFibers, numColumns);
+All_idealCP_X = zeros(numFibers, numColumns);
+All_idealCP_Y = zeros(numFibers, numColumns);
+
+% Loop over each neon column and extract the shifts for each fiber.
+% ajb : i.e. each x and y shift for this particular neon wavelength's image
+for k = 1:numColumns
+    % Retrieve the refined control points from Step 5.
+    % idealCP contains the ideal control points: [idealX, idealY],
+    % where idealX is the expected column (from the wavelength lookup)
+    % and idealY is the fiber row from white lamp detection.
+    idealCP = allIdealControlPoints{k};   % Size: [numFibers x 2]
+    
+    % actualCP contains the refined (data-driven) control points:
+    % [refined_actualX, refined_actualY]
+    actualCP = allActualControlPoints{k};   % Size: [numFibers x 2]
+    
+    % ajb : create matrices of the actual and ideal control points (rather
+    % than just the dx_all and dy_all differences
+    All_actualCP_X(:,k) = actualCP(:,1);
+    All_actualCP_Y(:,k) = actualCP(:,2);
+    All_idealCP_X(:,k) = idealCP(:,1);
+    All_idealCP_Y(:,k) = idealCP(:,2);
+    % ajb : Compute the per-fiber horizontal and vertical shifts for this neon column.
+    % dx_all(:,k) = All_idealCP_X(:,k) - All_actualCP_X(:,k); % dx: shift in X
+    % dy_all(:,k) = All_idealCP_Y(:,k) - All_actualCP_Y(:,k); % dy: shift in Y
+    % % previous version of dx_all and dy_all
+    % dx_all(:,k) = idealCP(:,1) - actualCP(:,1); % dx: shift in X
+    % dy_all(:,k) = idealCP(:,2) - actualCP(:,2); % dy: shift in Y
+
+end
+
+% create dx_all and dy_all from ideal and actual CP X and Y matrices
+dx_all = All_idealCP_X - All_actualCP_X;
+dy_all = All_idealCP_Y - All_actualCP_Y;
+
+% Compare the ACTUAL first and last neon columns's X shift values. If the
+% difference varies as a function of column, that means that we should not
+% be averaging over fibers. 
+% figure(101)
+% cla    
+% plot(All_actualCP_X(:,1), All_actualCP_Y, "bo")
+% hold on
+% plot(All_actualCP_X(:,end), All_actualCP_Y, "ro")
+% % render the x difference
+% offset = -400;
+% plot(offset + All_actualCP_X(:,end) - All_actualCP_X(:,1), All_actualCP_Y(:,1), 'ks')
+% axis ij
+% xlim([-100 1100])
+
+% calculate the mean and stdev of the pixel differences
+% Differences = All_actualCP_X(:,end) - All_actualCP_X(:,1);
+% myMean = mean(Differences);
+% myStdev = std(Differences);
+% myMax = max(Differences);
+% myMin = min(Differences);
+
+% ajb 2025.06.27 : figure out why/if there should be an averaged shift.
+% It does not make sense to me to average.
+% Different neon wavelengths have (slightly) different spatial patterns due
+% to aberrations -- this is what we want to correct.
+% Averaging would wash these out and cause all columns to have the same
+% horizontal shifts. 
+
+% ajb 2025.06.28 : 
+% === plot the actualCP values and create a 2D matrix
 
 
 
+% figure(100)
+% cla
+% hold off
+% for k = 1:numColumns
+%   actualCPAll(:,k) = allActualControlPoints{k};
+%   plot(actualCP(:,1),actualCP(:,2),'ro','MarkerSize',2);
+%   hold on
+% end
+% axis ij
+% xlim([0 800])
+
+% The X window region creates shifts that depend upon the window width.
+% When I use Space = 4 (\pm four pixels around AbsolutePixel position) for
+% both the full and 
+% there are several neon WLs that jump midway: 6, 11, and 14
+
+% when I use Sadia's default values of halfWin = 8, searchWin = 15, then
+% only 11 exhibits such a hiccup -- but in fact 6 and 14 get incorrectly "snapped" to 5
+% and 13 respectively.
+
+%% Create Delta X andn Y values for all locations in the raw image
+% ajb 2025.06.30 
+
+Sadia = 1;      % 1D correction (same for all columns - Sadia)
+Andrew = 2;     % 2D correction (different by columns - Andrew) 
+Method = Sadia;
+
+switch Method
+
+    case Andrew
+    % using AJB "fully rigorous" approach
+    % but in current practice this doesn't work quite as well
+    
+    % preallocate full 2D matrices for DeltaX and DeltaY displacements 
+    FullDeltaX = zeros(size(neonImage));
+    FullDeltaY = zeros(size(neonImage));
+    
+    % Step 1: for each *control* column, interpolate in 1D *vertically* to get
+    % shift values for each row (i.e. full 256 pixels for each such column).
+    
+    ColumnHeight = size(neonImage,1);
+    n = size(dx_all,2);  % number of neon control wavelengths
+    % preallocate data 
+    ControlColumnsFullX = zeros(ColumnHeight,n);
+    % loop over control columns
+    for i = 1:n
+        % supply index of the control column
+        Column = AbsolutePixel(i);
+        % supply row indices for control points in this column (1 for each neon
+        % center)
+        YRows = actualCP(:,2);  
+        % assign FullDelta X and Y values at these row indices
+        for j = 1:size(All_actualCP_X,1)        % all control rows
+            myRow = YRows(j);
+            FullDeltaX(myRow,Column) = dx_all(j,i);
+            FullDeltaY(myRow,Column) = dy_all(j,i);
+        end
+    
+        % YRows = control pixels in this column
+        % Xshift = x values of shift at these control pixels
+        % AllRows = 1:ColumnHeight
+        %   these are the inputs to interpolate across the control pixels for
+        %   each "neon column"
+        AllRows = 1:ColumnHeight;
+        FullDeltaX(:,Column) = interp1(YRows,FullDeltaX(YRows,Column),AllRows,"spline");
+        FullDeltaY(:,Column) = interp1(YRows,FullDeltaY(YRows,Column),AllRows,"spline");
+        
+    
+     %   ControlColumnsFullX(:,i) = interp1(All_actualCP_X(:,i), dx_all(:,i), 1:ColumnHeight,"spline");
+     %   ControlColumnsFullY(:,i) = interp1(All_actualCP_Y(:,i), dy_all(:,i), 1:ColumnHeight,"spline");  
+    end  
+    
+    % Step 2: for *all* rows, interpolate in 1D *horizontally* to get shift values
+    % for all columns. 
+    AllColumns = size(neonImage,2);
+    AllRows = ColumnHeight;
+    for i = 1:AllRows % interpolate horizontally for each row
+        % AbsolutePixel = control pixels in this row
+        % X shift = dx values
+        % AllColumns = 1:RowWidth
+        %   these are the inputs to interpolate across the control pixels in
+        %   this row
+        
+        FullDeltaX(i,:) = interp1(AbsolutePixel,FullDeltaX(i,AbsolutePixel),[1:AllColumns],'linear','extrap');
+        FullDeltaY(i,:) = interp1(AbsolutePixel,FullDeltaY(i,AbsolutePixel),[1:AllColumns],'linear','extrap');
+        
+        % supply control column index and values for X and Y 
+        % ControlColumnsFullX = interp1(All_actualCP_X(:,i), dx_all(:,i), 1:ColumnHeight,"spline");
+        % ControlColumnsFullY = interp1(All_actualCP_Y(:,i), dy_all(:,i), 1:ColumnHeight,"spline");  
+    end
+    
+    [Xgrid, Ygrid] = meshgrid(1:Nx, 1:Ny);  % Create coordinate grids for the full image.
+    
+    X_corrected_global = Xgrid - FullDeltaX;
+    Y_corrected_global = Ygrid - FullDeltaY;
+
+% end % if using Andrew's 2-step interpolation method
+
+
+% ajb : Sadia's method where all columns get the same value
+
+    case Sadia
+    
+    % Average the shifts across all neon columns for each fiber.  
+        % === ajb : Y values are all zero, but dx values are not 
+        % ajb : what is the value of an averaged shift?
+       
+    % This yields one dx and one dy per fiber row.
+    dx_fiber = mean(dx_all, 2);  % [numFibers x 1] vector for horizontal shifts.
+    dy_fiber = mean(dy_all, 2);  % [numFibers x 1] vector for vertical shifts.
+    
+    % The ideal fiber rows (Y positions) are given by detectedFiberPositions.
+    global_fiber_rows = detectedFiberPositions;
+    % ajb note: the neon image I've been using (2025.06.12) has very horizontal
+    % stripes - there seems to be no variation in Y for each stripe. But this
+    % doesn't have to be the case in general; the algorithm should still work
+    % even if the center row of the fiber "droops" as the column number
+    % increases or decreases.
+    
+    % Interpolate these per-fiber shifts to every row in the image.
+    allRows = (1:Ny)';  % All row indices in the image.
+    % ajb : this next line is what does the horizontal interpolation part 
+    global_dx = interp1(global_fiber_rows, dx_fiber, allRows, 'linear', 'extrap');
+    % global dy does nothing
+    global_dy = interp1(global_fiber_rows, dy_fiber, allRows, 'linear', 'extrap');
+    
+    [Xgrid, Ygrid] = meshgrid(1:Nx, 1:Ny);
+    
+    % old way:
+    X_corrected_global = Xgrid - repmat(global_dx, 1, Nx);
+    Y_corrected_global = Ygrid - repmat(global_dy, 1, Nx);
+
+end % Sadia method (seems to perform better, empirically!)
+
+
+% either way, apply the X and Y corrections
+
+% Use interp2 to re-sample the entire neon image at the corrected coordinates.
+% 'spline' interpolation for smoothness.
+correctedImage = interp2(1:Nx, 1:Ny, double(neonImage), ...
+                         X_corrected_global, Y_corrected_global, 'spline', 0);
+
+
+% For each row, subtract the corresponding shift (applied uniformly across the row):
+%   X_corrected = X_original - global_dx(row)
+%   Y_corrected = Y_original - global_dy(row)
+
+% ajb : sampling at finer X spacing requires a denser X grid
+%   - question is, how to make it denser the right way?
+%   The repmat part is straightforward: change Nx to 2*Nx - 1
+%   Making a denser meshgrid is also not that hard.
+
+% Step = 1;   % original
+% [Xgrid, Ygrid] = meshgrid(1:Nx, 1:Ny);
+% 
+% % old way:
+% X_corrected_global = Xgrid - repmat(global_dx, 1, Nx);
+% Y_corrected_global = Ygrid - repmat(global_dy, 1, Nx);
+% 
+
+
+%% ========================================================================
+% FINAL VISUALIZATION: RAW VS. GLOBALLY CORRECTED NEON IMAGE
+% ========================================================================
+figure('Name', 'Raw vs. Globally Corrected Neon Images');
+
+% Subplot 1: Raw Neon Image.
+subplot(2,1,1);
+imagesc(neonImage);
+axis image;
+title('Raw Neon Image');
+xlabel('X (pixels)');
+ylabel('Y (pixels)');
+colorbar;
+
+% Subplot 2: Globally Corrected Neon Image.
+subplot(2,1,2);
+imagesc(correctedImage);
+% axis image;
+axis fill;
+title('Globally Corrected Neon Image');
+xlabel('X (pixels)');
+ylabel('Y (pixels)');
+colorbar;
+
+%% ===================================================
+% SANITY CHECKS: RAW VS. GLOBALLY CORRECTED for Tylenol (peaks) and WhiteLamp (straightness)
+% ====================================================
+
+%% Tylenol check
+
+% Load neon lamp data and extract the spectrum.
+ % (need to change back to uigetDir to make this work)
+tylenolFile = fullfile(dataDir, 'tylenol.mat');
+load(tylenolFile, 'RawData'); 
+tylenolData = RawData.Spectrum; 
+tylenolImage = tylenolData(1:Range,:);
+
+TcorrectedImage = interp2(1:Nx, 1:Ny, double(tylenolImage), ...
+            X_corrected_global, Y_corrected_global, 'spline', 0);
+
+figure('Name', 'Raw vs. Globally Corrected Tylenol Images');
+ 
+% Subplot 1: Raw Tylenol Image.
+subplot(2,1,1);
+imagesc(tylenolImage);
+axis image;
+title('Raw Tylenol Image');
+xlabel('X (pixels)');
+ylabel('Y (pixels)');
+colorbar;
+
+% Subplot 2: Globally Corrected Tylenol Image.
+subplot(2,1,2);
+imagesc(TcorrectedImage);
+axis image;
+title('Globally Corrected Tylenol Image');
+xlabel('X (pixels)');
+ylabel('Y (pixels)');
+colorbar;
+
+%% WhiteLamp check
+figure('Name', 'Raw vs. Globally Corrected WhiteLamp Images');
+
+WcorrectedImage = interp2(1:Nx, 1:Ny, double(whiteLampImage), ...
+            X_corrected_global, Y_corrected_global, 'spline', 0);
+
+% Subplot 1: Raw White Lamp Image.
+subplot(2,1,1);
+imagesc(whiteLampImage);
+axis image;
+title('Raw White Lamp Image');
+xlabel('X (pixels)');
+ylabel('Y (pixels)');
+colorbar;
+
+% Subplot 2: Globally Corrected White Lamp Image.
+subplot(2,1,2);
+imagesc(WcorrectedImage);
+axis image;
+title('Globally Corrected White Lamp Image');
+xlabel('X (pixels)');
+ylabel('Y (pixels)');
+colorbar;
+
+%% biological data check
+figure('Name', 'Raw vs. Globally Corrected Data Image');
+
+% choose a file from the dataDir;
+[ChosenFile,dataDir] = uigetfile('C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12');
+myFile = fullfile(dataDir, ChosenFile);
+load(myFile, 'RawData'); 
+myData = RawData.Spectrum;  
+myImage = myData(1:Range,:);
+
+McorrectedImage = interp2(1:Nx, 1:Ny, double(myImage), ...
+            X_corrected_global, Y_corrected_global, 'spline', 0);
+
+% Subplot 1: Raw bone image data.
+% Currently MM00 from 
+subplot(2,1,1);
+imagesc(myImage);
+axis image;
+title('Raw Biological Data Image');
+xlabel('X (pixels)');
+ylabel('Y (pixels)');
+colorbar;
+
+% Subplot 2: Globally Corrected bone image data.
+subplot(2,1,2);
+imagesc(McorrectedImage);
+axis image;
+title('Globally Corrected Biological Data Image');
+xlabel('X (pixels)');
+ylabel('Y (pixels)');
+colorbar;
+
+% end of new block of aberration correction
 
 
 
@@ -599,7 +1447,7 @@ function FixedPatternCorrection = FPC(ImageIn, WL)
 
 
 
-%%%%%%%%%%%%%%%%%%
+%%
 
 
 % --- Executes on button press in initialprocess.
@@ -613,6 +1461,20 @@ function initialprocess_Callback(hObject, eventdata, handles)
 % close all
 
 %% pre-aberration correction
+
+% ajb 2025.07.25: invoke standalone RawCorrect function
+% need to supply the location of the file directory
+RC_FileDir = handles.FileDirectory;
+% WhichFiles = 0;  % i.e. all files, both Samples and Calib
+WhichFiles = 1;  % i.e. Samples
+% WhichFiles = 2;  % i.e. Calib
+Test = RawCorrect(RC_FileDir,WhichFiles);
+
+%% aberration correction function
+
+% placeholder for an AberrationCorrection function that mirrors what is
+% already in the code below
+AberrationCorrection = AbCorr();
 
 %% Options
 
@@ -671,8 +1533,8 @@ set(handles.initprocessstatus,'string','Status: Initializing...'); pause(1E-6)
 % ajb 2025.07.25: invoke standalone RawCorrect function
 % need to supply the location of the file directory
 RC_FileDir = handles.FileDirectory;
-WhichFiles = 0;  % i.e. all files, both Samples and Calib
-% WhichFiles = 1;  % i.e. Samples
+% WhichFiles = 0;  % i.e. all files, both Samples and Calib
+WhichFiles = 1;  % i.e. Samples
 % WhichFiles = 2;  % i.e. Calib
 Test = RawCorrect(RC_FileDir,WhichFiles);
 % 
