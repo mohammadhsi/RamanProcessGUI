@@ -224,13 +224,14 @@ fitted = spectra - putout;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % ajb 2025.07.24 : standalone function to preprocess raw data
 % function RC = RawCorrect(hObject, eventdata, handles)
-function RC = RawCorrect(FileDirInfo,WhichFiles)
+function [RC,myFrames] = RawCorrect(FileDirInfo,WhichFiles)
 % FileDirInfo gets the directory from the handles in the initprocess
 % routine
 % WhichFiles is an integer flag for which files to select:
 %   All = 0;
 %   Samples = 1
 %   Calib = 2
+%   OneSample = 3
 
 % steps:
 %  1. Convert to multiple frames
@@ -247,7 +248,7 @@ function RC = RawCorrect(FileDirInfo,WhichFiles)
 All = 0;
 Samples = 1;
 Calib = 2;
-OneSample = 3;  % ~specind + first sample: for testing
+OneSample = 3;  % first sample: for testing
 
 filedir = get(FileDirInfo,'string');
 s = what(filedir); allfiles = s.mat;
@@ -267,7 +268,7 @@ switch WhichFiles
     case Calib
         list = allfiles(~specind);
     case OneSample
-        list = allfiles(logical(~specind + specind(1) ));
+        list = allfiles(logical(specind(1) ));
 end
 % final set of files accessed    
 RC = list;
@@ -568,7 +569,10 @@ DarkCountsRemoved = DCR(Times, DarkCoeff, ReadoutOffset);
 
 DarkCorrected = CosmicCorrectedImage - DarkCountsRemoved;
 
-figure(ijk); cla; imagesc(DarkCorrected)
+% if figures are needed
+% figure(ijk); cla; imagesc(DarkCorrected)
+
+
 % Subtracting this out gives us just the photonic counts.
 
 % first two are dark-field; we can ignore them
@@ -579,16 +583,21 @@ figure(ijk); cla; imagesc(DarkCorrected)
 
 myFrames(ijk).RawData = DarkCorrected;
 
-
-
+% ajb 2025.11.22: have to bring that data into the initprocess function
 
 
 end  % of each file
 
 % at this point, we have myFrames.RawData
 % The next step is to apply fixed pattern 
+% 
+% ajb 2025.11.22 : need to do the fixed pattern correction outside of the
+% RawCorrect function
+
+
 
 %% Apply fixed pattern correction
+
 
 % load FPC_Variables_ForV2.mat;
 % ajb: for the time being, these are fixed, just to test the flow
@@ -601,9 +610,9 @@ end  % of each file
 % correct the specimen data to remove fixed pattern from the detector
 
 % input variables should be OneFrame and OneCF
-FixedPatternCorrected = FPC(OneFrame, OneCF);
+% FixedPatternCorrected = FPC(OneFrame, OneCF);
 
-AJB = 1;
+
 
 % end of function RawCorrect
 
@@ -637,15 +646,37 @@ DarkCountsRemoved = DarkCoeff * t + ReadoutOffset;
 % This is essential for our 0mm-offset fiber bundle, because the fixed
 % pattern is greater than the shot noise.
 
-function FixedPatternCorrection = FPC(ImageIn, CF)
-% function FixedPatternCorrection = FPC(ImageIn, CF)
+% ajb 2025.11.22: for now, we have only one high-SNR whitelamp dataset. It
+% is created in FPCRowbyRow_OneFrame.m. 
+% 
+% For now, just use the fixed pattern variable OneCF that was created by
+% FPCRowbyRow...
+% 
+% In the future we will associate each filedate with the closest/best fixed
+% pattern.
 
-% ImageIn = the averaged frame of biological data (background-corrected)
-% CF = the averaged frame of the correction factor (background-corrected)
+function FixedPatternCorrection = FPC(ImageArray, CF)
+% function FixedPatternCorrection = FPC(ImageArray, CF)
+
+% Inputs: 
+% ImageArray: a struct array of the form ImageArray(ijk).RawData
+% CF: the averaged frame of the correction factor
 %
+% Each RawData is the ijk'th image of specimen data.
+% Note: all images and the CF already have non-photon counts subtracted.
+% 
 % The output should be the corrected biological data, i.e.
-%   ImageIn * CF
-FixedPatternCorrection = ImageIn .* CF;
+%   CorrectedImage(ijk) = ImageArray(ijk) .* CF
+
+% number of frames
+numFrames = numel(ImageArray);
+% loop to create CorrectedArray
+for idx = 1:numFrames
+    CorrectedArray(idx).RawData = ImageArray(idx).RawData .* CF;
+end
+
+FixedPatternCorrection = CorrectedArray;
+% CorrectedArray should then be a struct array of frames
 
 % end of FPC function
 
@@ -1513,9 +1544,27 @@ AllSampleFiles = 1;
 OneSampleFile = 3;
 
 % first, just calibration files (dark included?)
-CalibData = RawCorrect(RC_FileDir,AllCalibFiles);    
+[~,CalibData] = RawCorrect(RC_FileDir,AllCalibFiles);    
 % next, just one sample file
-SampleData = RawCorrect(RC_FileDir,OneSampleFile);
+[~,SampleData] = RawCorrect(RC_FileDir,OneSampleFile);
+% next, apply fixed pattern correction to all sample files present
+%   for now, use data from 2025.03.25 (our only high-SNR whitelamp data)
+load FPC_Variables_ForV2.mat;   % gives us the OneCF correction function
+FPC_Data = FPC(SampleData,OneCF);
+
+% ajb 2025.11.22
+% sanity check: plot the raw data and the corrected data to see if they
+% look like each other, with the FPC making the 0mmm data have less of an
+% etalon effect
+figure(20); cla
+% uncorrected
+subplot(211)
+imagesc(SampleData.RawData);  
+title('without fixed pattern correction')
+% fixed pattern corrected, ideally
+subplot(212)
+imagesc(FPC_Data.RawData);  
+title('with fixed pattern correction')
 
 %% aberration correction function
 
