@@ -354,8 +354,8 @@ tic
     % each individual row
     [fitted,putout] = anita(ManyVectors(:,:),PolyOrder,1,px,iter);
     
-    figure(1)
-    plot(fitted'); axis tight
+ %   figure(1)
+ %   plot(fitted'); axis tight
     % these are indeed spectra (i.e. dimension seems correct)
     %  able to plot all 1280 line-spectra at once - surely much faster than looping 
     
@@ -685,12 +685,27 @@ FixedPatternCorrection = CorrectedArray;
 
 % Implement the aberrration code here
 
-function AberrationCorrect = AbCorr()
+% Inputs: all of the specimen data from the chosen folder
+%    all the files should already be in place from the FPC step, so this
+%    should be easy!
+
+function AberrationCorrected = AbCorr(Specimen,Calib)
+% inputs:
+% Specimen = struct array of Fixed Pattern Corrected images, one for each 
+%               specimen
+% Calib = struct array of calibration data (also full frames)
+
 
 %% ========================================================================
 % STEP 1: LOAD RAW DATA
 % Load white lamp and neon lamp spectral data 
 % ========================================================================
+
+% ajb 2025.11.23 -- We already have the data from the specimens and the
+% calibrations. No more need to work from file directories anymore.
+
+
+%% No more need for this section; can delete later
 % dataDir = 'C:\Users\Sadia\Desktop\Data Files\Neonasdata\polyorderneon = 3';
 
 
@@ -699,6 +714,8 @@ function AberrationCorrect = AbCorr()
 
 % hardwired when needed:
 % dataDir =  'C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12';
+
+if 0  % i.e. don't do any of this
 dataDir = 'C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2nd_14\2025_04_09';
 
 whiteLampFile = fullfile(dataDir, 'whitelamp.mat');
@@ -711,13 +728,31 @@ whiteLampData = RawData.Spectrum;
 % Load neon lamp data and extract the spectrum.
 load(neonFile, 'RawData'); 
 neonData = RawData.Spectrum; 
+end
 
-% Restrict to the first 256 rows.
-%  ? is this about using only the first frame rather than all frames? - ajb 2025.06.16
-% and eventually we should use *all five frames* for cosmic ray reasons
-Range = 256;
-whiteLampImage = whiteLampData(1:Range, :); 
-neonImage = neonData(1:Range, :);
+%% instead, use our existing files 
+
+%      the calib frames we care about for now are neon and whitelamp
+%      neon is the 3rd frame, whitelamp is the 6th
+%       plus for testing we currently use tylenol as well; that's the 5th
+
+% Calib
+neonImage = Calib(3).RawData;
+whiteLampImage = Calib(6).RawData;
+tylenolImage = Calib(5).RawData;
+
+% Specimen file will be dealt with at the end
+
+
+%% back to original code for aberration correction
+
+% 2025.11.23 ajb - All of these commented lines below will be cut once this
+% is working stably.
+% Restrict to the first 256 rows. ajb comment: in this
+% new version there is only one frame per specimen at this point --
+% everything has been corrected and averaged already over all frames Range
+% = 256;    % this value isn't universal of course whiteLampImage =
+% whiteLampData(1:Range, :); neonImage = neonData(1:Range, :);
 
 % Quick visualization of the raw neon image.
 figure(1)
@@ -1419,14 +1454,16 @@ colorbar;
 % SANITY CHECKS: RAW VS. GLOBALLY CORRECTED for Tylenol (peaks) and WhiteLamp (straightness)
 % ====================================================
 
+if 0
+
 %% Tylenol check
 
 % Load neon lamp data and extract the spectrum.
  % (need to change back to uigetDir to make this work)
-tylenolFile = fullfile(dataDir, 'tylenol.mat');
-load(tylenolFile, 'RawData'); 
-tylenolData = RawData.Spectrum; 
-tylenolImage = tylenolData(1:Range,:);
+% tylenolFile = fullfile(dataDir, 'tylenol.mat');
+% load(tylenolFile, 'RawData'); 
+% tylenolData = RawData.Spectrum; 
+% tylenolImage = tylenolData(1:Range,:);
 
 TcorrectedImage = interp2(1:Nx, 1:Ny, double(tylenolImage), ...
             X_corrected_global, Y_corrected_global, 'spline', 0);
@@ -1452,6 +1489,8 @@ ylabel('Y (pixels)');
 colorbar;
 
 %% WhiteLamp check
+
+
 figure('Name', 'Raw vs. Globally Corrected WhiteLamp Images');
 
 WcorrectedImage = interp2(1:Nx, 1:Ny, double(whiteLampImage), ...
@@ -1475,22 +1514,32 @@ xlabel('X (pixels)');
 ylabel('Y (pixels)');
 colorbar;
 
+end 
+
 %% biological data check
 figure('Name', 'Raw vs. Globally Corrected Data Image');
 
-% choose a file from the dataDir;
-[ChosenFile,dataDir] = uigetfile('C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12');
-myFile = fullfile(dataDir, ChosenFile);
-load(myFile, 'RawData'); 
-myData = RawData.Spectrum;  
-myImage = myData(1:Range,:);
+% % choose a file from the dataDir;
+% [ChosenFile,dataDir] = uigetfile('C:\Users\ajber\Box\research\BergerLabBoneProject\Data\Cadaver\2025_06_12');
+% myFile = fullfile(dataDir, ChosenFile);
+% load(myFile, 'RawData'); 
+% myData = RawData.Spectrum;  
+% myImage = myData(1:Range,:);
 
-McorrectedImage = interp2(1:Nx, 1:Ny, double(myImage), ...
-            X_corrected_global, Y_corrected_global, 'spline', 0);
+% make plots for whatever number of images there are
+numFrames = numel(Specimen);
 
-% Subplot 1: Raw bone image data.
-% Currently MM00 from 
-subplot(2,1,1);
+% McorrectedImage = interp2(1:Nx, 1:Ny, double(myImage), ...
+%            X_corrected_global, Y_corrected_global, 'spline', 0);
+
+% create struct to create the corrected frames
+McorrectedImage(1:numFrames) = struct('RawData', 0);
+
+
+for ijk = 1:numFrames 
+myImage = Specimen(ijk).RawData; % note: this is FPC data
+% Subplot 1: Raw bone image data
+subplot(211);
 imagesc(myImage);
 axis image;
 title('Raw Biological Data Image');
@@ -1499,16 +1548,36 @@ ylabel('Y (pixels)');
 colorbar;
 
 % Subplot 2: Globally Corrected bone image data.
-subplot(2,1,2);
-imagesc(McorrectedImage);
+% McorrectedImage(ijk).RawData = interp2(1:Nx, 1:Ny, double(myImage), ...
+%            X_corrected_global, Y_corrected_global, 'spline', 0);
+myTest = interp2(1:Nx, 1:Ny, double(myImage), ...
+            X_corrected_global, Y_corrected_global, 'spline', 0);
+subplot(212);
+%imagesc(McorrectedImage.RawData);
+imagesc(myTest);
 axis image;
 title('Globally Corrected Biological Data Image');
 xlabel('X (pixels)');
 ylabel('Y (pixels)');
 colorbar;
 
+McorrectedImage(ijk).RawData = myTest;
 
-AJB = 1;
+end % of numFrames
+
+close all
+
+AberrationCorrected = McorrectedImage;
+
+% Output sent back to the main Initprocess routine:
+%
+% Want all sample frames corrected, and want to keep the X and Y global
+% corrections for the record
+
+
+
+% AberrationCorrection = ...
+
 % end of new block of aberration correction
 
 
@@ -1566,11 +1635,10 @@ subplot(212)
 imagesc(FPC_Data.RawData);  
 title('with fixed pattern correction')
 
-%% aberration correction function
+%% aberration correction 
 
-% placeholder for an AberrationCorrection function that mirrors what is
-% already in the code below
-AberrationCorrection = AbCorr();
+% Pass FPC_Data and CalibData to the Aberration Correction (AbCorr) function 
+AberrationCorrected = AbCorr(FPC_Data,CalibData);
 
 %% Options
 
