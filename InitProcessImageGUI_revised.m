@@ -1565,7 +1565,7 @@ McorrectedImage(ijk).RawData = myTest;
 
 end % of numFrames
 
-close all
+
 
 AberrationCorrected = McorrectedImage;
 
@@ -1615,30 +1615,54 @@ OneSampleFile = 3;
 % first, just calibration files (dark included?)
 [~,CalibData] = RawCorrect(RC_FileDir,AllCalibFiles);    
 % next, just one sample file
-[~,SampleData] = RawCorrect(RC_FileDir,OneSampleFile);
+[~,SampleData] = RawCorrect(RC_FileDir,AllSampleFiles);
 % next, apply fixed pattern correction to all sample files present
 %   for now, use data from 2025.03.25 (our only high-SNR whitelamp data)
 load FPC_Variables_ForV2.mat;   % gives us the OneCF correction function
 FPC_Data = FPC(SampleData,OneCF);
 
-% ajb 2025.11.22
+%%
+% ajb 2025.11.24
 % sanity check: plot the raw data and the corrected data to see if they
 % look like each other, with the FPC making the 0mmm data have less of an
 % etalon effect
-figure(20); cla
+
+
+figure(20)
+
+sub = 210;
+
+ijk = 1;
 % uncorrected
-subplot(211)
-imagesc(SampleData.RawData);  
+subplot(sub+1)
+imagesc(SampleData(ijk).RawData);  
 title('without fixed pattern correction')
-% fixed pattern corrected, ideally
-subplot(212)
-imagesc(FPC_Data.RawData);  
+% fixed pattern corrected
+subplot(sub+2)
+imagesc(FPC_Data(ijk).RawData);  
 title('with fixed pattern correction')
+
 
 %% aberration correction 
 
 % Pass FPC_Data and CalibData to the Aberration Correction (AbCorr) function 
 AberrationCorrected = AbCorr(FPC_Data,CalibData);
+save Corrected_2025_04_09.mat AberrationCorrected;  
+
+% test ability to plot two files rather than one - had 20 to process
+figure('Name','Test plot of two specimen files')
+sub = 210;
+for ijk = 1:2
+    subplot(sub+ijk)
+    imagesc(AberrationCorrected(ijk).RawData);  
+    axis image
+    title('with fixed pattern correction')
+end
+
+%% Ready for post-processing
+
+AJB = 1;
+
 
 %% Options
 
