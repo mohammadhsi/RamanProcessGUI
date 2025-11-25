@@ -181,9 +181,6 @@ smoothWindow = 50;
 
 CF_3D = ones(numRows, numCols, numMetaFrames);  % default is all 1's
 
-
-
-
 % AJB: I choose to define the multiplicative correction factor as 
 %         CF = wlRowSmooth / wlRow
 %      and the corresponding corrected sample measurement is defined as
@@ -199,8 +196,7 @@ for f = 1:numMetaFrames
     end
 end
 % AJB: note that the CF plots should have valleys where the sample data have peaks
-%   -- but that doesn't seem to be the case! (Nov 15) -- why not??
-% need to look at the WL plots themselves START HERE
+
 
 %% LOAD THE MEASUREMENT & SUBTRACT DARK => (256x1024x5)
 measStruct = load(measDataPath);
