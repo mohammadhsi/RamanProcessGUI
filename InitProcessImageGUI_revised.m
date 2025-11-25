@@ -1656,7 +1656,7 @@ for ijk = 1:2
     subplot(sub+ijk)
     imagesc(AberrationCorrected(ijk).RawData);  
     axis image
-    title('with fixed pattern correction')
+    title('First two files')
 end
 
 %% Ready for post-processing
